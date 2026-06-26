@@ -1,0 +1,61 @@
+{
+  "id": 102,
+  "title": "Tesla Model 3 Highland — 6 month ownership report",
+  "fancy_title": "Tesla Model 3 Highland — 6 month ownership report",
+  "slug": "tesla-model-3-highland-6-month-report",
+  "posts_count": 5,
+  "category_id": 2,
+  "views": 8830,
+  "like_count": 121,
+  "created_at": "2025-12-01T12:00:00.000Z",
+  "post_stream": {
+    "stream": [9001, 9002, 9003, 9004, 9005],
+    "posts": [
+      {
+        "id": 9001,
+        "post_number": 1,
+        "username": "evowner_mia",
+        "name": "Mia",
+        "created_at": "2025-12-01T12:00:00.000Z",
+        "updated_at": "2025-12-01T12:00:00.000Z",
+        "cooked": "<p>Starting a long-term log for my Model 3 Highland. Picked it up last week.</p>"
+      },
+      {
+        "id": 9002,
+        "post_number": 2,
+        "username": "carfan_dave",
+        "name": "Dave",
+        "created_at": "2026-03-01T10:00:00.000Z",
+        "updated_at": "2026-03-01T10:00:00.000Z",
+        "cooked": "<p>Following — curious about <b>winter range</b> numbers.</p>"
+      },
+      {
+        "id": 9003,
+        "post_number": 3,
+        "username": "evowner_mia",
+        "name": "Mia",
+        "created_at": "2026-04-10T09:30:00.000Z",
+        "updated_at": "2026-04-10T09:30:00.000Z",
+        "cooked": "<p>Three-month update: averaging 250Wh/mi. Supercharging cost about $0.34/kWh on road trips.</p>"
+      },
+      {
+        "id": 9004,
+        "post_number": 4,
+        "username": "wrenchturner",
+        "name": "Sam",
+        "created_at": "2026-05-15T16:00:00.000Z",
+        "updated_at": "2026-05-15T16:00:00.000Z",
+        "cooked": "<p>How's the ride quality on the Highland vs the old one? Reviews said it's firmer.</p>"
+      },
+      {
+        "id": 9005,
+        "post_number": 5,
+        "username": "evowner_mia",
+        "name": "Mia",
+        "created_at": "2026-06-22T08:15:00.000Z",
+        "updated_at": "2026-06-22T08:15:00.000Z",
+        "cooked": "<p>Six-month verdict: would buy again. Firmer ride is noticeable but the efficiency and quietness win me over.</p>"
+      }
+    ]
+  }
+}
