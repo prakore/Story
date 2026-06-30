@@ -16,6 +16,7 @@
       <div class="lbl">Book</div>
       <button data-screen="book" data-roles="planner employee" class="on"><span class="ic">✨</span> Book a Space</button>
       <button data-screen="requests" data-roles="planner employee"><span class="ic">📥</span> <span id="lbl-requests">Requests</span> <span class="pill" id="req-count"></span></button>
+      <button data-screen="personalize" data-roles="planner employee"><span class="ic">⚙️</span> Personalize</button>
       <div class="lbl" data-roles="planner">Manage</div>
       <button data-screen="dashboard" data-roles="planner"><span class="ic">📊</span> Dashboard</button>
       <button data-screen="planner" data-roles="planner"><span class="ic">🗓️</span> Planner Board</button>
@@ -101,6 +102,12 @@
         </div>
         <div id="ct-detail"></div>
       </div>
+    </section>
+
+    <!-- PERSONALIZE -->
+    <section class="screen" id="screen-personalize">
+      <div class="top"><div><h1>⚙️ Personalize</h1><p>Set who you’re booking for, your favourite building &amp; rooms, and booking defaults. These pre-fill every new booking and tune recommendations.</p></div></div>
+      <div id="pf-body"></div>
     </section>
 
     <!-- SPACE EXPLORER (tree) -->

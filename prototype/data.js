@@ -263,6 +263,31 @@ const DATA = {
       impact:'Prevents catering failures', confidence:0.84, action:'Acknowledge' },
   ],
 
-  // current user profile (employee). Center auto-fills on the selection screen.
-  user: { name:'Jordan Lee', center:'Americas — New York', homeRegion:'Americas', favoriteBuildingId:null },
+  // roster for "act as" / book-on-behalf-of delegation
+  people: [
+    { id:'u-jordan', name:'Jordan Lee', team:'Sales',        role:'Account Executive' },
+    { id:'u-sam',    name:'Sam Ortega', team:'Partnerships', role:'Partnerships Manager' },
+    { id:'u-mia',    name:'Mia Chen',   team:'Exec Office',  role:'EA to the CRO' },
+    { id:'u-raj',    name:'Raj Patel',  team:'Legal',        role:'Counsel' },
+    { id:'u-lena',   name:'Lena Novak', team:'People',       role:'Recruiter' },
+  ],
+
+  // current user profile + personalization
+  user: {
+    id:'u-jordan', name:'Jordan Lee', center:'Americas — New York', homeRegion:'Americas',
+    favoriteBuildingId:null,           // set in Personalize / booking
+    favoriteRoomIds:[],                // preferred rooms (if allowed)
+    actingForId:null,                  // booking on behalf of someone else
+    prefs:{
+      pax:8, durationH:1, setups:['Boardroom'], wantExtras:true,
+      services:['s2'], catering:[],    // auto-added defaults
+      dietary:'Vegetarian options', accessibility:['Step-free access'],
+    },
+    // previous activity that drives the Assistant's recommendations
+    history:[
+      { label:'Weekly team sync', buildingId:'bld-001', type:'Huddle',    setups:['As-is / existing'], pax:6,  services:[],         catering:['metro-snack'],          eventType:'Internal meeting', freq:'weekly'   },
+      { label:'Acme QBR',         buildingId:'bld-001', type:'Boardroom',  setups:['Boardroom'],        pax:14, services:['s1','s2'], catering:['metro-lunch'],          eventType:'Client meeting',   freq:'monthly'  },
+      { label:'Contract signing', buildingId:'bld-001', type:'Boardroom',  setups:['Boardroom'],        pax:10, services:['s2'],      catering:['metro-bev'],            eventType:'Client meeting',   freq:'recent'   },
+    ],
+  },
 };
