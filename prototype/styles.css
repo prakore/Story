@@ -199,6 +199,38 @@ a{color:var(--accent);text-decoration:none}
 .ar .fit{font-size:11px;font-weight:700;margin-top:6px}
 .ar .fit.ok{color:#6ee7b7}.ar .fit.no{color:#fda4af}
 
+/* SLA strip on request cards */
+.slastrip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-top:13px;padding-top:12px;border-top:1px dashed var(--line);font-size:12px;color:var(--mut)}
+.slastrip b{color:var(--txt);font-weight:700}
+.slastrip .tot{color:var(--accent)}.slastrip .tot b{color:var(--accent)}
+.slastrip .jtoggle{margin-left:auto}
+
+/* journey stepper */
+.jwrap{margin-top:12px}
+.journey{margin-top:6px}
+.jstep{display:flex;gap:12px}
+.jrail{display:flex;flex-direction:column;align-items:center;flex:none}
+.jdot{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);color:var(--mut2)}
+.jconn{width:2px;flex:1;background:var(--line);margin:2px 0}
+.jstep.done .jdot{background:var(--ok);color:#06281c;box-shadow:none}
+.jstep.pending .jdot{background:var(--warn);color:#3a2a06;box-shadow:none}
+.jstep.queued .jdot{background:transparent;color:var(--mut2);box-shadow:inset 0 0 0 1.5px var(--mut2)}
+.jstep.na .jdot{opacity:.5}
+.jbody{padding-bottom:14px;flex:1}
+.jstep:last-child .jbody{padding-bottom:0}
+.jhd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px}
+.jhd .jsla{font-size:11.5px;font-weight:750;color:var(--accent);white-space:nowrap}
+.jstep.na .jhd .jsla{color:var(--mut2)}
+.jstep.done .jhd .jsla{color:var(--ok)}
+.jdetail{font-size:11.5px;color:var(--mut);margin-top:2px}
+.jtotal{margin-top:8px;font-size:12.5px;color:var(--mut);background:var(--panel2);border-radius:10px;padding:9px 12px;box-shadow:inset 0 0 0 1px var(--line)}
+.jtotal b{color:var(--accent)}
+.jmini{margin-top:14px;font-size:12px;color:var(--mut);background:rgba(34,211,238,.08);border:1px solid var(--line);border-radius:10px;padding:10px 12px;line-height:1.5}
+.jmini b{color:var(--accent)}
+.jdet{margin-top:10px}
+.jdet summary{font-size:12px;color:var(--accent);font-weight:650;cursor:pointer;user-select:none}
+.jdet[open] summary{margin-bottom:8px}
+
 .empty{color:var(--mut2);font-size:13px;text-align:center;padding:40px}
 .banner-note{font-size:11.5px;color:var(--mut2);margin-top:30px;border-top:1px solid var(--line);padding-top:16px;line-height:1.6}
 @media(max-width:1080px){.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center}.nav{flex-direction:row;flex-wrap:wrap}.nav .lbl,.side .me{display:none}.stats{grid-template-columns:1fr 1fr}.rooms,.insights{grid-template-columns:1fr}.finder{grid-template-columns:1fr}}

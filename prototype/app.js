@@ -134,6 +134,59 @@ function roomCard(r, opts={}){
   </div>`;
 }
 
+/* ============================================================
+   BOOKING JOURNEY — step-by-step path + SLA timings
+   Each step shows how long it takes; catering & AV run in
+   parallel once the room is confirmed, so total = room + max(rest).
+   ============================================================ */
+const fmtSla = h => h===0 ? 'instant' : h<24 ? `~${h}h` : (h%24===0?`~${h/24}d`:`~${(h/24).toFixed(1)}d`);
+
+function journeyFor(o){
+  const center = centerById(o.centerId);
+  const done = o.kind==='booking' || o.status==='allocated';  // room secured
+  const live = o.kind==='request' && o.status==='pending';
+  const reqStat = done ? 'done' : (live ? 'pending' : 'na');
+
+  const roomSla = o.kind==='request' ? center.allocSla : 0;
+  const cIds = o.catering||[], sIds = o.services||[];
+  const cSla = cIds.length ? Math.max(...cIds.map(id=>cat(id).confirmSla)) : 0;
+  const sSla = sIds.length ? Math.max(...sIds.map(id=>svc(id).confirmSla)) : 0;
+
+  const steps = [
+    { icon:'📝', label:o.kind==='request'?'Request submitted':'Booking created', sla:0, status:'done',
+      detail:'Requirements, catering & services captured' },
+    { icon:'🏢', label:'Room confirmation', sla:roomSla, status: done?'done':(live?'pending':'na'),
+      detail: done ? `Confirmed: ${room(o.allocatedRoomId||o.roomId).name}`
+            : center.policy==='self' ? 'Instant — self-service booking'
+            : `Planner allocates a room in ${center.name}` },
+    { icon:'🍽️', label:'Catering order confirmation', sla:cSla,
+      status: cIds.length ? (done?'done':'queued') : 'na',
+      detail: cIds.length ? cIds.map(id=>`${cat(id).name} (${fmtSla(cat(id).confirmSla)})`).join(', ') : 'No catering ordered' },
+    { icon:'🎛️', label:'AV & services booking', sla:sSla,
+      status: sIds.length ? (done?'done':'queued') : 'na',
+      detail: sIds.length ? sIds.map(id=>`${svc(id).name} (${fmtSla(svc(id).confirmSla)})`).join(', ') : 'No services ordered' },
+    { icon:'✅', label:'Fully confirmed — ready', sla:0, status: done?'done':'pending',
+      detail: done ? 'All elements confirmed' : 'Pending the steps above' },
+  ];
+  return { steps, roomSla, cSla, sSla, total: roomSla + Math.max(cSla, sSla), done };
+}
+
+const JDOT = { done:'✓', pending:'●', queued:'○', na:'–' };
+function journeyHTML(j){
+  const rows = j.steps.map((s,i)=>{
+    const last = i===j.steps.length-1;
+    const sla = s.status==='na' ? '—' : (s.sla===0 ? (s.status==='done'?'done':'—') : fmtSla(s.sla));
+    return `<div class="jstep ${s.status}">
+      <div class="jrail"><span class="jdot">${JDOT[s.status]}</span>${last?'':'<span class="jconn"></span>'}</div>
+      <div class="jbody"><div class="jhd"><b>${s.icon} ${s.label}</b><span class="jsla">${sla}</span></div>
+        <div class="jdetail">${s.detail}</div></div></div>`;
+  }).join('');
+  const eta = j.done
+    ? `<span style="color:var(--ok)">All confirmed ✓</span>`
+    : `Est. time to fully confirmed <b>${fmtSla(j.total)}</b> <span class="muted">(room ${fmtSla(j.roomSla)} · then catering ${fmtSla(j.cSla)} / AV ${fmtSla(j.sSla)} in parallel)</span>`;
+  return `<div class="journey">${rows}</div><div class="jtotal">⏱ ${eta}</div>`;
+}
+
 /* ---------- Insight card ---------- */
 function insightCard(i){
   return `<div class="card ins"><div class="ic">${i.icon}</div><div style="flex:1">
@@ -279,10 +332,20 @@ function renderRequests(){
     const actions = (planning && req.status==='pending')
       ? `<button class="btn sm primary" data-allocate="${req.id}">${req._open?'Close':'Allocate room'}</button>`
       : '';
+    const j = journeyFor({ kind:'request', centerId:req.centerId, catering:req.catering, services:req.services, status:req.status, allocatedRoomId:req.allocatedRoomId });
+    const slaStrip = `<div class="slastrip">
+      <span>🏢 Room <b>${fmtSla(j.roomSla)}</b></span>
+      <span>🍽️ Catering <b>${req.catering.length?fmtSla(j.cSla):'—'}</b></span>
+      <span>🎛️ AV/services <b>${req.services.length?fmtSla(j.sSla):'—'}</b></span>
+      <span class="tot">⏱ Fully confirmed <b>${j.done?'done':fmtSla(j.total)}</b></span>
+      <button class="btn ghost sm jtoggle" data-journey="${req.id}">${req._journey?'Hide journey':'View journey'}</button>
+    </div>`;
+    const journey = req._journey ? `<div class="jwrap">${journeyHTML(j)}</div>` : '';
     return `<div class="req"><div class="rh">
         <div><h3>${req.meeting}</h3><div class="who">Requested by ${req.requester}${req.date?` · ${req.date}`:''}</div></div>
         <div style="display:flex;gap:10px;align-items:center">${actions}${statusLine}</div></div>
-      <div class="grid">${meta}</div>${req.notes?`<div class="note">“${req.notes}”</div>`:''}${panel}</div>`;
+      <div class="grid">${meta}</div>${req.notes?`<div class="note">“${req.notes}”</div>`:''}
+      ${slaStrip}${journey}${panel}</div>`;
   }).join('');
   renderReqCount();
 }
@@ -342,6 +405,7 @@ function renderComposer(){
   const end = cmp.start+cmp.hours;
   const t = composerTotals();
   const isBook = cmp.mode==='book';
+  const jo = journeyFor({ kind:isBook?'booking':'request', centerId:r?r.centerId:cmp.centerId, roomId:cmp.roomId, catering:[...cmp.catering], services:[...cmp.services], status:isBook?'confirmed':'pending' });
   const title = isBook ? `Book ${r.name}` : cmp.mode==='reqpref' ? `Request ${r.name}` : `Request a space`;
   const sub = r ? `${r.building} · Floor ${r.floor} · ${r.layout} · seats ${r.capacity}` : `${center.name} · a planner will allocate the suite`;
   $('#drawer-head').innerHTML = `<h2>${title}</h2><div class="sub">${sub}</div>`;
@@ -386,7 +450,9 @@ function renderComposer(){
       <div class="kv"><span>Room · ${cmp.hours}h ${r?'× '+money(r.rate):''}</span><b>${r?money(t.roomCost):'at allocation'}</b></div>
       <div class="kv"><span>Catering · ${cmp.catering.size} item(s) × ${cmp.pax} pax</span><b>${money(t.cCost)}</b></div>
       <div class="kv"><span>Services · ${cmp.services.size} item(s)</span><b>${money(t.sCost)}</b></div>
-    </div>`;
+    </div>
+    <div class="jmini">⏱ ${isBook?'Room confirmed instantly':'Est. room confirmation '+fmtSla(jo.roomSla)} · catering ${cmp.catering.size?fmtSla(jo.cSla):'—'} · AV/services ${cmp.services.size?fmtSla(jo.sSla):'—'} · <b>fully confirmed ${fmtSla(jo.total)}</b></div>
+    <details class="jdet"><summary>View full booking journey</summary>${journeyHTML(jo)}</details>`;
 
   const blocked = isBook && conflictsFor(r.id, cmp.date, cmp.start, end, cmp.editId).length;
   const btnLabel = isBook ? (cmp.editId?'Save changes ✓':'Confirm booking ✓') : 'Submit request 📥';
@@ -447,7 +513,9 @@ function openBookingDetail(b){
     <div class="kv"><span>Room rate</span><b>${money(r.rate)}/hr · ${(b.end-b.start)}h</b></div>
     <div class="kv"><span>Planner</span><b>${p.name}</b></div>
     <div class="section-h"><h2 style="font-size:14px">🍽️ Catering</h2></div>${cRows}
-    <div class="section-h"><h2 style="font-size:14px">🛎️ Services</h2></div>${sRows}`;
+    <div class="section-h"><h2 style="font-size:14px">🛎️ Services</h2></div>${sRows}
+    <div class="section-h"><h2 style="font-size:14px">🧭 Booking journey</h2></div>
+    ${journeyHTML(journeyFor({ kind:'booking', centerId:r.centerId, roomId:b.roomId, catering:b.catering, services:b.services, status:b.status }))}`;
   $('#drawer-foot').innerHTML=`<div><div class="muted" style="font-size:11px">Booking value</div><div class="total">${money(total)}</div></div><button class="btn primary" id="bd-edit">Edit / add services</button>`;
   $('#drawer-foot').querySelector('#bd-edit').onclick=()=>openComposer({mode:'book',roomId:b.roomId,editId:b.id,prefill:{catering:new Set(b.catering),services:new Set(b.services),pax:b.pax,hours:b.end-b.start,start:b.start,date:b.date||TODAY,name:b.title,audience:b.client==='Internal'?'Internal meeting':'External client'}});
   openDrawer();
@@ -459,6 +527,7 @@ document.addEventListener('click', e=>{
   const roomBtn=e.target.closest('[data-room]'); if(roomBtn){ routeRoom(room(roomBtn.dataset.room)); return; }
   const newslot=e.target.closest('[data-newroom]');
   if(newslot && !e.target.closest('.bk')){ const rect=newslot.getBoundingClientRect(); const frac=Math.min(0.95,Math.max(0,(e.clientX-rect.left)/rect.width)); const start=Math.min(Math.round((H0+frac*(H1-H0))*2)/2,H1-1); openComposer({mode:'book',roomId:newslot.dataset.newroom,prefill:{start}}); return; }
+  const jt=e.target.closest('[data-journey]'); if(jt){ const req=DATA.requests.find(r=>r.id===jt.dataset.journey); req._journey=!req._journey; renderRequests(); return; }
   const al=e.target.closest('[data-allocate]'); if(al){ const req=DATA.requests.find(r=>r.id===al.dataset.allocate); req._open=!req._open; renderRequests(); return; }
   const ar=e.target.closest('[data-alloc-room]'); if(ar){ const [rq,rm]=ar.dataset.allocRoom.split('|'); allocSel[rq]=rm; renderRequests(); return; }
   const ca=e.target.closest('[data-confirm-alloc]'); if(ca){ allocate(ca.dataset.confirmAlloc); return; }

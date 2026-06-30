@@ -12,10 +12,11 @@ const DATA = {
      self         : employees pick a room and book instantly
      request_pref : employees request and MAY name a preferred room; a planner confirms
      allocate     : employees can only request a space; a planner allocates the room   */
+  // allocSla = typical hours for a planner to confirm/allocate a room request
   centers: [
-    { id:'c-hq',    name:'HQ Tower',                policy:'self',         blurb:'Self-service — pick a room and book instantly.' },
-    { id:'c-annex', name:'Annex',                   policy:'request_pref', blurb:'Request a room; you may name a preferred one. A planner confirms.' },
-    { id:'c-exec',  name:'Executive Client Centre', policy:'allocate',     blurb:'Premium client suites — request a space; a planner allocates the room.' },
+    { id:'c-hq',    name:'HQ Tower',                policy:'self',         allocSla:0, blurb:'Self-service — pick a room and book instantly.' },
+    { id:'c-annex', name:'Annex',                   policy:'request_pref', allocSla:4, blurb:'Request a room; you may name a preferred one. A planner confirms.' },
+    { id:'c-exec',  name:'Executive Client Centre', policy:'allocate',     allocSla:8, blurb:'Premium client suites — request a space; a planner allocates the room.' },
   ],
 
   // --- People ---
@@ -25,24 +26,24 @@ const DATA = {
     { id:'p3', name:'Priya Nair',  role:'Catering Coordinator',      avatar:'PN' },
   ],
 
-  // --- Catering menu ---
+  // --- Catering menu ---  lead = order-ahead notice; confirmSla = caterer confirmation turnaround (hours)
   catering: [
-    { id:'c1', name:'Barista Coffee & Tea Cart', price:6,  unit:'per person', lead:2,  veg:true },
-    { id:'c2', name:'Continental Breakfast',     price:14, unit:'per person', lead:12, veg:true },
-    { id:'c3', name:'Working Lunch Buffet',      price:24, unit:'per person', lead:24, veg:true },
-    { id:'c4', name:'Premium Boxed Lunch',       price:19, unit:'per person', lead:18, veg:true },
-    { id:'c5', name:'Afternoon Snack & Pastries',price:9,  unit:'per person', lead:4,  veg:true },
-    { id:'c6', name:'Client Reception Canapés',  price:32, unit:'per person', lead:48, veg:false },
+    { id:'c1', name:'Barista Coffee & Tea Cart', price:6,  unit:'per person', lead:2,  confirmSla:1,  veg:true },
+    { id:'c2', name:'Continental Breakfast',     price:14, unit:'per person', lead:12, confirmSla:4,  veg:true },
+    { id:'c3', name:'Working Lunch Buffet',      price:24, unit:'per person', lead:24, confirmSla:8,  veg:true },
+    { id:'c4', name:'Premium Boxed Lunch',       price:19, unit:'per person', lead:18, confirmSla:6,  veg:true },
+    { id:'c5', name:'Afternoon Snack & Pastries',price:9,  unit:'per person', lead:4,  confirmSla:2,  veg:true },
+    { id:'c6', name:'Client Reception Canapés',  price:32, unit:'per person', lead:48, confirmSla:24, veg:false },
   ],
 
-  // --- Ancillary services ---
+  // --- Ancillary services ---  confirmSla = team confirmation turnaround (hours)
   services: [
-    { id:'s1', name:'AV Technician on standby',   price:120, unit:'flat', icon:'🎛️' },
-    { id:'s2', name:'Video conferencing setup',   price:60,  unit:'flat', icon:'📹' },
-    { id:'s3', name:'Room reset / deep clean',    price:45,  unit:'flat', icon:'🧹' },
-    { id:'s4', name:'Reception & visitor escort', price:75,  unit:'flat', icon:'🛎️' },
-    { id:'s5', name:'Whiteboard / flipchart pack',price:15,  unit:'flat', icon:'📝' },
-    { id:'s6', name:'Translation / captioning',   price:200, unit:'flat', icon:'🌐' },
+    { id:'s1', name:'AV Technician on standby',   price:120, unit:'flat', confirmSla:4,  icon:'🎛️' },
+    { id:'s2', name:'Video conferencing setup',   price:60,  unit:'flat', confirmSla:2,  icon:'📹' },
+    { id:'s3', name:'Room reset / deep clean',    price:45,  unit:'flat', confirmSla:2,  icon:'🧹' },
+    { id:'s4', name:'Reception & visitor escort', price:75,  unit:'flat', confirmSla:4,  icon:'🛎️' },
+    { id:'s5', name:'Whiteboard / flipchart pack',price:15,  unit:'flat', confirmSla:1,  icon:'📝' },
+    { id:'s6', name:'Translation / captioning',   price:200, unit:'flat', confirmSla:24, icon:'🌐' },
   ],
 
   // --- Rooms (centerId links to a centre's policy) ---

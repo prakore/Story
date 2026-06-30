@@ -79,6 +79,31 @@ starred and pre-selected when free), and confirms — which creates a confirmed
 booking on the Planner Board and marks the request *Allocated*. Planners can
 book any specific room directly; the policy only gates employees.
 
+## Booking journey & SLA timings (v3)
+
+Every booking and request now shows a **step-by-step journey** with how long
+each step takes:
+
+1. **Request submitted / Booking created** — instant
+2. **Room confirmation** — `instant` for self-service, else the centre's
+   allocation SLA (Annex ~4h, Executive Client Centre ~8h)
+3. **Catering order confirmation** — caterer turnaround per item
+   (coffee ~1h, breakfast ~4h, lunch ~8h, canapés ~24h)
+4. **AV & services booking** — team turnaround per item
+   (VC setup ~2h, AV technician ~4h, translation ~24h)
+5. **Fully confirmed — ready**
+
+Catering and AV run **in parallel** once the room is secured, so
+**total ETA = room confirmation + max(catering, AV)**. Example: an Executive
+Client Centre request with a working lunch + AV tech →
+room ~8h, catering ~8h, AV ~4h, **fully confirmed ~16h**.
+
+Where you see it: a compact **SLA strip** on every request card
+(`Room · Catering · AV · Fully confirmed`) with a **View journey** stepper;
+the same journey in the booking-detail drawer; and a live **ETA line** in the
+composer before you submit. SLA values live in `data.js`
+(`centers[].allocSla`, `catering[].confirmSla`, `services[].confirmSla`).
+
 ## Refinements (v1.1)
 
 - **Realistic, spread scores** — replaced saturated "everything's 99%" with a
