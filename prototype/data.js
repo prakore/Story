@@ -1,101 +1,194 @@
 /* ============================================================
-   Mock data layer
-   Hydrated in production from internal systems:
-   - Space/floor data  -> IWMS / facilities
-   - Calendar/occupancy -> Microsoft 365 / Google Workspace
-   - Catering menu      -> caterer "shop" feed
-   - Services           -> AV / IT / cleaning / security ticketing
+   Convene — data layer (v4)
+   Scale model: 100+ Buildings > Floors > Spaces.
+   In production these are hydrated from internal systems:
+     - Buildings / floors / spaces / common names / amenities  -> SPACE MANAGEMENT SYSTEM
+     - Live availability                                        -> Microsoft 365 / Google Workspace
+     - Per-building catering menus                              -> caterer setup (admin) + caterer feed
+     - Services (AV / IT / cleaning)                            -> ticketing
+   Here the space estate is generated deterministically so the
+   prototype has realistic scale (searchable building list,
+   favourites, building-scoped room lists).
    ============================================================ */
 
-const DATA = {
-  /* --- Conference centres & their booking policy ---
-     self         : employees pick a room and book instantly
-     request_pref : employees request and MAY name a preferred room; a planner confirms
-     allocate     : employees can only request a space; a planner allocates the room   */
-  // allocSla = typical hours for a planner to confirm/allocate a room request
-  centers: [
-    { id:'c-hq',    name:'HQ Tower',                policy:'self',         allocSla:0, blurb:'Self-service — pick a room and book instantly.' },
-    { id:'c-annex', name:'Annex',                   policy:'request_pref', allocSla:4, blurb:'Request a room; you may name a preferred one. A planner confirms.' },
-    { id:'c-exec',  name:'Executive Client Centre', policy:'allocate',     allocSla:8, blurb:'Premium client suites — request a space; a planner allocates the room.' },
-  ],
+/* ---- deterministic RNG so the estate is stable across reloads ---- */
+function _rng(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const _pick  = (a,r)=>a[Math.floor(r()*a.length)];
+const _int   = (lo,hi,r)=>lo+Math.floor(r()*(hi-lo+1));
+const _pickN = (a,n,r)=>{ const c=[...a],out=[]; for(let i=0;i<n&&c.length;i++) out.push(c.splice(Math.floor(r()*c.length),1)[0]); return out; };
+const _pad   = (n,w)=>String(n).padStart(w,'0');
 
-  // --- People ---
+/* ---- reference lists ---- */
+const CITIES = [
+  {city:'New York',region:'Americas',code:'NYC'},{city:'San Francisco',region:'Americas',code:'SFO'},
+  {city:'Chicago',region:'Americas',code:'CHI'},{city:'Austin',region:'Americas',code:'AUS'},
+  {city:'Toronto',region:'Americas',code:'YYZ'},{city:'São Paulo',region:'Americas',code:'GRU'},
+  {city:'London',region:'EMEA',code:'LON'},{city:'Dublin',region:'EMEA',code:'DUB'},
+  {city:'Paris',region:'EMEA',code:'PAR'},{city:'Berlin',region:'EMEA',code:'BER'},
+  {city:'Amsterdam',region:'EMEA',code:'AMS'},{city:'Madrid',region:'EMEA',code:'MAD'},
+  {city:'Dubai',region:'EMEA',code:'DXB'},{city:'Singapore',region:'APAC',code:'SIN'},
+  {city:'Tokyo',region:'APAC',code:'TYO'},{city:'Sydney',region:'APAC',code:'SYD'},
+  {city:'Bangalore',region:'APAC',code:'BLR'},{city:'Hong Kong',region:'APAC',code:'HKG'},
+];
+const BLD_NAMES = ['Helix','Beacon','Atrium','Quay','Meridian','Harbour','Lumen','Pioneer','Spectrum','Cobalt','Ironworks','Summit','Vertex','Aurora','Keystone','Lighthouse','Maple','Granite','Eastgate','Northpoint','Riverside','Skyline','Foundry','Observatory'];
+const BLD_SUFFIX = ['Tower','House','Centre','Campus','Place','Works','Plaza','Hall'];
+const ROOM_NAMES = ['Sequoia','Baltic','Sahara','Thames','Hudson','Willow','Cedar','Onyx','Coral','Marble','Aspen','Cobalt','Indigo','Saffron','Juniper','Basalt','Tundra','Cypress','Lagoon','Quartz','Ember','Dune','Fjord','Birch','Slate','Cove','Mesa','Verde','Aurora','Cirrus','Delta','Echo','Flint','Garnet','Halcyon','Iris'];
+// setup/teardown = minutes the room is held before/after a booking for reset & layout
+const SPACE_TYPES = [
+  {t:'Huddle',      cap:[2,6],   setup:0,  teardown:0},
+  {t:'Meeting Room',cap:[4,10],  setup:5,  teardown:5},
+  {t:'Conference',  cap:[8,16],  setup:10, teardown:10},
+  {t:'Boardroom',   cap:[10,20], setup:15, teardown:15},
+  {t:'Training',    cap:[16,40], setup:20, teardown:15},
+  {t:'Theatre',     cap:[30,120],setup:45, teardown:30},
+  {t:'Banquet',     cap:[40,200],setup:60, teardown:45},
+];
+const AMENITIES = ['4K display','Dual screen','VC suite','Hearing loop','Step-free access','Skyline view','Whiteboard wall','Stage','PA system','Catering-ready','Natural light','Dedicated AV booth','Phone for dial-in','Coffee station'];
+
+const SETUP_TYPES = ['As-is / existing','Boardroom','U-shape','Theatre','Classroom','Banquet','Hollow square','Cabaret'];
+const EVENT_TYPES = ['Internal meeting','Client meeting','Training / workshop','Interview','Board meeting','Town hall','Reception / networking'];
+
+/* ---- catering templates (a building references one; admin can override) ----
+   Multi-choice items expose choiceGroups: the orderer picks `pick` from each.
+   cutoffHours = how far before the event the order must be placed.            */
+function _menu(prefix, premium){
+  const veg=t=>({name:t,veg:true}), non=t=>({name:t,veg:false});
+  const buffet = {
+    id:prefix+'-buffet', name:'Hot & Cold Buffet', type:'buffet', pricePerHead: premium?34:26, cutoffHours:24,
+    choiceGroups:[
+      {id:'g1',label:'Starters',pick:2,options:[veg('Garden salad'),veg('Soup of the day'),non('Chicken skewers'),veg('Hummus & flatbread'),non('Smoked salmon')]},
+      {id:'g2',label:'Mains',   pick:2,options:[non('Roast chicken'),non('Grilled salmon'),veg('Vegetable lasagne'),non('Beef stir-fry'),veg('Paneer curry')]},
+      {id:'g3',label:'Sides',   pick:2,options:[veg('Roast potatoes'),veg('Seasonal greens'),veg('Rice pilaf'),veg('Mixed leaf salad')]},
+      {id:'g4',label:'Dessert', pick:1,options:[veg('Fruit platter'),veg('Cheesecake'),veg('Brownie bites')]},
+    ],
+  };
+  const lunch = {
+    id:prefix+'-lunch', name:'Working Lunch (individual orders)', type:'lunch', pricePerHead: premium?22:17, cutoffHours:18,
+    choiceGroups:[
+      {id:'g1',label:'Main',pick:1,options:[non('Chicken Caesar wrap'),veg('Falafel & halloumi wrap'),non('Roast beef sandwich'),veg('Caprese ciabatta'),non('Tuna nicoise box')]},
+      {id:'g2',label:'Side',pick:1,options:[veg('Fruit pot'),veg('Crisps'),veg('Side salad')]},
+      {id:'g3',label:'Drink',pick:1,options:[veg('Still water'),veg('Sparkling water'),veg('Orange juice'),veg('Cola')]},
+    ],
+  };
+  const items = [
+    buffet, lunch,
+    {id:prefix+'-bev',  name:'Barista Coffee & Tea Cart', type:'beverage', pricePerHead:6, cutoffHours:2,  choiceGroups:[]},
+    {id:prefix+'-snack',name:'Afternoon Snacks & Pastries',type:'snack',   pricePerHead:9, cutoffHours:4,  choiceGroups:[]},
+  ];
+  if(premium) items.push({id:prefix+'-canape',name:'Client Reception Canapés',type:'reception',pricePerHead:32,cutoffHours:48,choiceGroups:[
+    {id:'g1',label:'Canapé selection',pick:4,options:[non('Mini beef sliders'),non('Prawn skewers'),veg('Caprese bites'),veg('Wild mushroom tartlet'),non('Chicken yakitori'),veg('Bruschetta')]},
+  ]});
+  return items;
+}
+const CATERING_TEMPLATES = {
+  tpl_std:     { id:'tpl_std',     name:'Standard',         items:_menu('std',false) },
+  tpl_premium: { id:'tpl_premium', name:'Premium / client', items:_menu('prm',true)  },
+  tpl_lite:    { id:'tpl_lite',    name:'Lite (beverages & snacks)', items:[
+    {id:'lite-bev',name:'Barista Coffee & Tea Cart',type:'beverage',pricePerHead:6,cutoffHours:2,choiceGroups:[]},
+    {id:'lite-snack',name:'Afternoon Snacks & Pastries',type:'snack',pricePerHead:9,cutoffHours:4,choiceGroups:[]},
+  ] },
+};
+
+/* ---- ancillary services (global) ---- */
+const SERVICES = [
+  { id:'s1', name:'AV Technician on standby',   price:120, confirmSla:4,  icon:'🎛️' },
+  { id:'s2', name:'Video conferencing setup',   price:60,  confirmSla:2,  icon:'📹' },
+  { id:'s3', name:'Room reset / deep clean',    price:45,  confirmSla:2,  icon:'🧹' },
+  { id:'s4', name:'Reception & visitor escort', price:75,  confirmSla:4,  icon:'🛎️' },
+  { id:'s5', name:'Whiteboard / flipchart pack',price:15,  confirmSla:1,  icon:'📝' },
+  { id:'s6', name:'Translation / captioning',   price:200, confirmSla:24, icon:'🌐' },
+];
+
+/* ---- generate the estate ---- */
+function buildEstate(){
+  const r=_rng(1337); const buildings=[], spaces=[];
+  const N=120; const tplKeys=Object.keys(CATERING_TEMPLATES);
+  let spc=0;
+  for(let i=0;i<N;i++){
+    const loc=CITIES[i%CITIES.length];
+    const bId='bld-'+_pad(i+1,3);
+    const bName=`${_pick(BLD_NAMES,r)} ${_pick(BLD_SUFFIX,r)}`;
+    const nFloors=_int(2,9,r);
+    const tpl = tplKeys[i%tplKeys.length];
+    const floors=[];
+    for(let f=0;f<nFloors;f++){
+      const level=f+1;
+      const nSpaces=_int(2,7,r);
+      const fId=`${bId}-f${level}`;
+      for(let s=0;s<nSpaces;s++){
+        const st=_pick(SPACE_TYPES,r);
+        const cap=_int(st.cap[0],st.cap[1],r);
+        const big=['Conference','Boardroom','Training','Theatre','Banquet'].includes(st.t);
+        const ams=_pickN(AMENITIES, _int(3,6,r), r);
+        if(big && r()<0.8 && !ams.includes('Catering-ready')) ams.push('Catering-ready');
+        if(level>=Math.max(1,nFloors-1) && r()<0.5 && !ams.includes('Skyline view')) ams.push('Skyline view');
+        spc++;
+        spaces.push({
+          id:`sp-${_pad(spc,5)}`, externalId:`SPC-${loc.code}-${_pad(spc,5)}`,
+          name:_pick(ROOM_NAMES,r), commonName:_pick(ROOM_NAMES,r),
+          type:st.t, capacity:cap, amenities:ams,
+          setupMins:st.setup, teardownMins:st.teardown,
+          buildingId:bId, buildingName:bName, city:loc.city, region:loc.region,
+          floorId:fId, floor:level,
+          rate: Math.round((20 + cap*6 + (big?60:0)) /5)*5, rating:(3.9+r()*1.1).toFixed(1)*1,
+        });
+      }
+      floors.push({ id:fId, level, name:`Floor ${level}` });
+    }
+    buildings.push({
+      id:bId, externalId:`BLD-${_pad(i+1,4)}`, name:bName, city:loc.city, region:loc.region,
+      label:`${bName} · ${loc.city}`, floors, cateringTemplate:tpl,
+    });
+  }
+  return { buildings, spaces };
+}
+const _estate = buildEstate();
+
+/* ---- seed today's bookings + a couple of requests in a home building ---- */
+function seedBookings(spaces){
+  const home = spaces.filter(s=>s.buildingId==='bld-001');
+  const big = home.filter(s=>s.capacity>=8);
+  const mk=(i,sp,title,client,st,en,pax,status,cat,sv)=>({ id:'b'+(i+1), spaceId:sp.id, title, client, start:st, end:en, pax, status, catering:cat, services:sv, date:'2026-06-30', planner:'p1' });
+  const b=[];
+  if(big[0]) b.push(mk(0,big[0],'Acme Corp QBR','Acme Corp',9,11,14,'confirmed',[],['s2']));
+  if(big[1]) b.push(mk(1,big[1],'Investor day','Northwind',10,16,22,'confirmed',[],['s1','s2']));
+  if(big[2]) b.push(mk(2,big[2],'Design review','Internal',11,12,7,'tentative',[],['s5']));
+  if(big[3]) b.push(mk(3,big[3],'Legal negotiation','Initech',9.5,12.5,9,'confirmed',[],['s6']));
+  if(home[0]) b.push(mk(4,home[0],'Standup','Internal',9,9.5,5,'confirmed',[],[]));
+  return b;
+}
+
+const DATA = {
+  buildings: _estate.buildings,
+  spaces: _estate.spaces,
+  cateringTemplates: CATERING_TEMPLATES,
+  cateringOverrides: {},          // buildingId -> items[]  (set via Catering Setup)
+  services: SERVICES,
+  setupTypes: SETUP_TYPES,
+  eventTypes: EVENT_TYPES,
+  amenities: AMENITIES,
   planners: [
     { id:'p1', name:'Ava Mendel',  role:'Workplace Experience Lead', avatar:'AM' },
     { id:'p2', name:'Tomás Reyes', role:'Facilities Coordinator',    avatar:'TR' },
-    { id:'p3', name:'Priya Nair',  role:'Catering Coordinator',      avatar:'PN' },
   ],
-
-  // --- Catering menu ---  lead = order-ahead notice; confirmSla = caterer confirmation turnaround (hours)
-  catering: [
-    { id:'c1', name:'Barista Coffee & Tea Cart', price:6,  unit:'per person', lead:2,  confirmSla:1,  veg:true },
-    { id:'c2', name:'Continental Breakfast',     price:14, unit:'per person', lead:12, confirmSla:4,  veg:true },
-    { id:'c3', name:'Working Lunch Buffet',      price:24, unit:'per person', lead:24, confirmSla:8,  veg:true },
-    { id:'c4', name:'Premium Boxed Lunch',       price:19, unit:'per person', lead:18, confirmSla:6,  veg:true },
-    { id:'c5', name:'Afternoon Snack & Pastries',price:9,  unit:'per person', lead:4,  confirmSla:2,  veg:true },
-    { id:'c6', name:'Client Reception Canapés',  price:32, unit:'per person', lead:48, confirmSla:24, veg:false },
-  ],
-
-  // --- Ancillary services ---  confirmSla = team confirmation turnaround (hours)
-  services: [
-    { id:'s1', name:'AV Technician on standby',   price:120, unit:'flat', confirmSla:4,  icon:'🎛️' },
-    { id:'s2', name:'Video conferencing setup',   price:60,  unit:'flat', confirmSla:2,  icon:'📹' },
-    { id:'s3', name:'Room reset / deep clean',    price:45,  unit:'flat', confirmSla:2,  icon:'🧹' },
-    { id:'s4', name:'Reception & visitor escort', price:75,  unit:'flat', confirmSla:4,  icon:'🛎️' },
-    { id:'s5', name:'Whiteboard / flipchart pack',price:15,  unit:'flat', confirmSla:1,  icon:'📝' },
-    { id:'s6', name:'Translation / captioning',   price:200, unit:'flat', confirmSla:24, icon:'🌐' },
-  ],
-
-  // --- Rooms (centerId links to a centre's policy) ---
-  rooms: [
-    { id:'r1', name:'Summit',  centerId:'c-hq',    building:'HQ Tower', floor:14, capacity:16, layout:'Boardroom', img:'linear-gradient(135deg,#6366f1,#8b5cf6)', features:['4K display','Dual screen','VC suite','Catering-ready','Step-free'], av:'premium', natLight:true,  catering:true,  rate:180, rating:4.9, building_proximity:1 },
-    { id:'r2', name:'Horizon', centerId:'c-hq',    building:'HQ Tower', floor:14, capacity:24, layout:'Theatre',   img:'linear-gradient(135deg,#0ea5e9,#22d3ee)', features:['Stage','PA system','VC suite','Catering-ready','Hearing loop','Step-free'], av:'premium', natLight:true, catering:true, rate:260, rating:4.8, building_proximity:1 },
-    { id:'r3', name:'Atlas',   centerId:'c-hq',    building:'HQ Tower', floor:9,  capacity:8,  layout:'Conference',img:'linear-gradient(135deg,#f59e0b,#f97316)', features:['Display','VC suite','Whiteboard wall','Catering-ready'], av:'standard', natLight:true, catering:true, rate:90, rating:4.6, building_proximity:2 },
-    { id:'r4', name:'Nimbus',  centerId:'c-hq',    building:'HQ Tower', floor:9,  capacity:6,  layout:'Huddle',    img:'linear-gradient(135deg,#10b981,#34d399)', features:['Display','VC suite','Whiteboard'], av:'standard', natLight:false, catering:false, rate:55, rating:4.4, building_proximity:2 },
-    { id:'r8', name:'Aurora',  centerId:'c-hq',    building:'HQ Tower', floor:20, capacity:18, layout:'Boardroom', img:'linear-gradient(135deg,#a855f7,#ec4899)', features:['4K display','Dual screen','VC suite','Catering-ready','Skyline view','Step-free'], av:'premium', natLight:true, catering:true, rate:230, rating:5.0, building_proximity:1 },
-
-    { id:'r6', name:'Cobalt',  centerId:'c-annex', building:'Annex',    floor:3,  capacity:12, layout:'Boardroom', img:'linear-gradient(135deg,#3b82f6,#6366f1)', features:['4K display','VC suite','Catering-ready','Step-free'], av:'premium', natLight:true, catering:true, rate:140, rating:4.7, building_proximity:4 },
-    { id:'r7', name:'Pine',    centerId:'c-annex', building:'Annex',    floor:1,  capacity:4,  layout:'Huddle',    img:'linear-gradient(135deg,#14b8a6,#22d3ee)', features:['Display','Whiteboard'], av:'basic', natLight:false, catering:false, rate:35, rating:4.2, building_proximity:4 },
-
-    { id:'r5',  name:'Vertex',  centerId:'c-exec', building:'Executive Client Centre', floor:2, capacity:40, layout:'Banquet',   img:'linear-gradient(135deg,#ec4899,#f43f5e)', features:['Stage','PA system','Catering kitchen','Catering-ready','Step-free','Hearing loop'], av:'premium', natLight:true, catering:true, rate:420, rating:4.7, building_proximity:3 },
-    { id:'r9',  name:'Monaco',  centerId:'c-exec', building:'Executive Client Centre', floor:5, capacity:14, layout:'Boardroom', img:'linear-gradient(135deg,#f59e0b,#ec4899)', features:['4K display','Dual screen','VC suite','Catering-ready','Skyline view','Step-free'], av:'premium', natLight:true, catering:true, rate:300, rating:4.9, building_proximity:3 },
-    { id:'r10', name:'Geneva',  centerId:'c-exec', building:'Executive Client Centre', floor:5, capacity:10, layout:'Conference',img:'linear-gradient(135deg,#8b5cf6,#22d3ee)', features:['4K display','VC suite','Catering-ready','Step-free'], av:'premium', natLight:true, catering:true, rate:240, rating:4.8, building_proximity:3 },
-  ],
-
-  // --- Existing confirmed bookings (today) ---
-  bookings: [
-    { id:'b1', roomId:'r1', title:'Acme Corp QBR',     start:9,   end:11,  planner:'p1', client:'Acme Corp', pax:14, status:'confirmed', catering:['c2'], services:['s2'], date:'2026-06-30' },
-    { id:'b2', roomId:'r1', title:'Board sync',        start:13,  end:14.5,planner:'p1', client:'Internal',  pax:10, status:'confirmed', catering:['c1'], services:[],     date:'2026-06-30' },
-    { id:'b3', roomId:'r2', title:'Investor day',      start:10,  end:16,  planner:'p2', client:'Northwind', pax:22, status:'confirmed', catering:['c3','c5'], services:['s1','s2'], date:'2026-06-30' },
-    { id:'b4', roomId:'r3', title:'Design review',     start:11,  end:12,  planner:'p2', client:'Internal',  pax:7,  status:'tentative', catering:[], services:['s5'], date:'2026-06-30' },
-    { id:'b5', roomId:'r5', title:'Partner reception', start:17,  end:20,  planner:'p3', client:'Globex',    pax:38, status:'confirmed', catering:['c6'], services:['s1','s4'], date:'2026-06-30' },
-    { id:'b6', roomId:'r6', title:'Legal negotiation', start:9.5, end:12.5,planner:'p1', client:'Initech',   pax:9,  status:'confirmed', catering:['c1'], services:['s6'], date:'2026-06-30' },
-    { id:'b7', roomId:'r8', title:'Exec offsite',      start:8.5, end:17,  planner:'p1', client:'Internal',  pax:16, status:'confirmed', catering:['c2','c3'], services:['s1'], date:'2026-06-30' },
-    { id:'b8', roomId:'r3', title:'Vendor pitch',      start:14,  end:15.5,planner:'p2', client:'Soylent',   pax:6,  status:'confirmed', catering:['c5'], services:[],     date:'2026-06-30' },
-    { id:'b9', roomId:'r4', title:'Standup',           start:9,   end:9.5, planner:'p2', client:'Internal',  pax:5,  status:'confirmed', catering:[], services:[],         date:'2026-06-30' },
-  ],
-
-  // --- Pending room requests awaiting planner allocation ---
+  // allocation SLA (hours) used by the booking-journey timeline
+  allocSla: 6,
+  bookings: seedBookings(_estate.spaces),
   requests: [
-    { id:'rq1', requester:'Jordan Lee', meeting:'Customer advisory board', audience:'External client', pax:18, date:'2026-06-30', start:14, end:17,
-      centerId:'c-exec', preferredRoomId:null, features:['VC suite','catering'], catering:['c3'], services:['s1','s2'], notes:'Premium feel, working lunch, needs AV support.', status:'pending', allocatedRoomId:null },
-    { id:'rq2', requester:'Sam Ortega', meeting:'Partnership kickoff', audience:'External client', pax:10, date:'2026-06-30', start:10, end:11.5,
-      centerId:'c-annex', preferredRoomId:'r6', features:['VC suite'], catering:['c1'], services:[], notes:'Would love Cobalt if free.', status:'pending', allocatedRoomId:null },
+    { id:'rq1', requester:'Jordan Lee', meeting:'Customer advisory board', eventType:'Client meeting', pax:18,
+      date:'2026-06-30', start:14, end:17, buildingId:null, region:'Americas', preferredSpaceId:null,
+      setup:'Boardroom', amenities:['VC suite'], catering:[], services:['s1','s2'],
+      notes:'No building chosen — please allocate a client-grade room in New York.', status:'pending', allocatedSpaceId:null },
+  ],
+  insights: [
+    { id:'i1', type:'request', icon:'📥', title:'Unallocated request needs a room',
+      detail:'Jordan Lee’s “Customer advisory board” (18 pax, New York, no building chosen) is unallocated and starts 14:00 today. Allocate a client-grade room.',
+      impact:'Avoids a no-room incident', confidence:0.9, action:'Allocate' },
+    { id:'i2', type:'catering', icon:'🍽️', title:'Buffet cutoff approaching',
+      detail:'Hot & Cold Buffet has a 24h order cutoff. Same-day buffet requests will be blocked — steer late bookers to the 2h beverage cart or 4h snacks.',
+      impact:'Prevents catering failures', confidence:0.84, action:'Acknowledge' },
   ],
 
-  // --- AI planner insights ---
-  insights: [
-    { id:'i1', type:'optimize',   icon:'📉', title:'Consolidate under-filled bookings',
-      detail:'“Vendor pitch” (6 pax in Atlas/8) and “Design review” (7 pax) overlap 11:00–12:00. Move Design review to Nimbus to free a catering-ready room for an inbound client request.',
-      impact:'Frees 1 catering-ready room', confidence:0.86, action:'Rebook' },
-    { id:'i2', type:'catering',   icon:'🍽️', title:'Catering lead-time risk',
-      detail:'Globex “Partner reception” starts 17:00 today and requires Reception Canapés (48h lead). Order was placed 41h ago — confirm with caterer now or switch to Snack & Pastries (4h lead).',
-      impact:'Prevents service failure', confidence:0.93, action:'Notify caterer' },
-    { id:'i3', type:'request',    icon:'📥', title:'Aged request needs allocation',
-      detail:'Jordan Lee’s “Customer advisory board” (18 pax, Executive Client Centre) is unallocated and starts 14:00 today. Monaco is too small (14); Vertex fits and is free. Allocate now.',
-      impact:'Avoids a no-room incident', confidence:0.9, action:'Allocate' },
-    { id:'i4', type:'utilization',icon:'🏢', title:'Low utilisation — Annex floor 1',
-      detail:'Pine (Annex/1) is booked 8% this week vs 64% HQ average. Route small internal huddles here to protect premium client inventory.',
-      impact:'Protects premium inventory', confidence:0.80, action:'Set routing rule' },
-  ],
+  // current user profile (employee). Center auto-fills on the selection screen.
+  user: { name:'Jordan Lee', center:'Americas — New York', homeRegion:'Americas', favoriteBuildingId:null },
 };

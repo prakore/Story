@@ -1,125 +1,91 @@
-# Convene — Client Conference Room Booking (clickable prototype)
+# Convene — Conference Room Booking (clickable prototype)
 
-A self-contained, **clickable HTML/CSS/JS prototype** of a best-in-class client
-conference-room booking suite with **AI room recommendation**, **planner
-management** and an **AI recommendations** screen. No build step, no
-dependencies — open `index.html` in any browser.
+A self-contained, **clickable HTML/CSS/JS prototype** — no build, no deps. Open
+`index.html` in any browser. Switch between **Employee** and **Planner** with the
+identity chip at the bottom-left.
 
 ```
 prototype/
-├── index.html   # app shell + all screens
+├── index.html   # app shell + screens
 ├── styles.css   # dark “workplace ops” theme
-├── app.js       # navigation, AI recommender, planner, booking drawer
-├── data.js      # mock data (rooms, catering, services, bookings, insights)
-└── assets/      # screenshots of each screen
+├── app.js       # wizard, ranking, availability, allocation, catering setup
+├── data.js      # generated estate (120 buildings) + catering templates + SLAs
+└── assets/      # screenshots
 ```
 
-## Screens (all clickable)
+## Estate model — Buildings › Floors › Spaces (at scale)
 
-1. **Dashboard** — KPIs, “needs your attention” AI insights, top rooms.
-2. **AI Room Finder** — describe a meeting (attendees, client tier, building,
-   must-have features, free-text notes) → ranked rooms with a **% match score
-   and a plain-English “why”**. Transparent weighted scoring in `recommend()`.
-3. **Rooms** — full catalogue, synced (conceptually) from IWMS + M365.
-4. **Planner Board** — timeline grid (rooms × 08:00–20:00), bookings
-   color-coded by status, planner workload, booked value incl. catering/services.
-   Click a block → booking detail; click an empty slot → draft a new booking.
-5. **Recommendations** — proactive planner intelligence (utilisation, catering
-   lead-time risk, VIP upsell, sustainability) each with a confidence bar and a
-   one-click action.
-6. **Booking drawer** — add **catering** and **services** with live totals,
-   then confirm — the new booking appears on the Planner Board.
+The estate is **generated** so the prototype has realistic scale:
 
-## How the “AI” works (prototype)
+- **~120 buildings** across Americas / EMEA / APAC (searchable dropdown, favourites).
+- Each building has **floors**, each floor has **spaces** (~1,500 spaces total).
+- Each **space** carries: external ID, name / common name, **type**, **capacity**,
+  **amenities**, and **setup / teardown** minutes — all notionally sourced from the
+  **Space Management System** (mocked in `data.js`).
 
-`app.js → recommend(req)` scores every room with a transparent, weighted model
-so each result is **explainable** (capacity fit, required features, client tier
-→ premium AV, building proximity, rating, natural light). Swap this function for
-a real ranking/LLM service without touching the UI. Smart prefill also suggests a
-working-lunch menu when the brief mentions lunch, and AV standby for Tier-1 clients.
+## Book a Space — step-by-step wizard
+
+1. **Details** — building (defaults to your **favourite ★**, or search 120
+   buildings; leave blank to *Request a Room*), attendees, date, start/end,
+   **setup type** (layout) and **event type**. Your **centre auto-fills** from
+   your profile.
+   - Building chosen → **Find rooms**. No building → **Request a room** (a planner
+     allocates one in your centre).
+2. **Choose a room** — all rooms in the building, AI-ranked, with availability that
+   accounts for each room’s **setup/teardown buffer**; external ID, amenities and
+   buffer times shown.
+3. **Services** *(if “I need services & catering” is ticked)* — AV, VC, cleaning…
+4. **Catering** *(same toggle)* — **per-building** menu (below).
+5. **Review & confirm** — full summary, totals, and the **booking journey** with
+   SLA timings. Confirms a booking, or submits a request.
+
+## Catering — per building, multi-choice, with cutoffs
+
+Set up under **Catering Setup** (planner). Each building references a template
+(Standard / Premium / Lite) and can be **overridden per building**. Items:
+
+- **Multi-choice buffets & lunch orders** — the orderer picks N per group
+  (e.g. Buffet → Starters pick 2, Mains pick 2, Sides pick 2, Dessert pick 1).
+- Simpler **beverage / snack** items.
+- Every item has an **order cutoff** that the booking flow **enforces**:
+  a 24h buffet is **blocked for a same-day event** but available a few days out;
+  a 2h coffee cart is fine same-day.
+
+Catering Setup lets a planner edit cutoffs, add options to a choice group, and
+add new items — saved per building.
+
+## Setup & teardown time
+
+Every space has **setup** and **teardown** minutes (Huddle 0/0 → Banquet 60/45).
+A booking holds the room for `start − setup … end + teardown`; availability and
+conflict detection use this **buffered window**, and the Planner Board draws the
+buffer as a hatched band beside each booking.
+
+## Requests → allocation
+
+A request (no building chosen) lands in the planner **Requests** queue. The
+planner sees AI-ranked rooms (filtered to the building, or the requester’s
+region), confirms one, and it becomes a booking. Each request shows an **SLA
+strip** (room / catering / AV / fully-confirmed).
+
+## Booking journey & SLA timings
+
+Every booking/request shows: submitted → room confirmation → catering
+confirmation → AV booking → ready. Catering & AV run in parallel once the room is
+secured, so **total = room confirmation + max(catering, AV)**. SLAs live in
+`data.js` (`allocSla`, per-catering-type, `services[].confirmSla`).
 
 ## Where real data would come from
 
-This mirrors how the best-in-class systems researched (YAROOMS, Condeco, MRI
-Software, OfficeSpace, MazeMap) integrate internal systems:
-
 | Data | Source system |
 |------|---------------|
-| Space / floor attributes | IWMS / facilities (Condeco, MRI, archibus) |
-| Live availability | Microsoft 365 / Google Workspace 2-way calendar sync |
-| Catering menu | Caterer product feed (MazeMap “shop” model) |
-| Ancillary services | AV / IT / cleaning / security ticketing |
+| Buildings / floors / spaces / common names / amenities / setup-teardown | **Space Management System** |
+| Live availability | Microsoft 365 / Google Workspace |
+| Per-building catering menus | Caterer setup (admin) + caterer feed |
+| Services (AV / IT / cleaning) | Ticketing |
 
-In this prototype everything is mocked in `data.js` so the flows are fully
-interactive offline.
-
-## Internal + external, roles & per-centre policy (v2)
-
-Used for **both internal meetings and external client visits** — there is no
-"client tier"; instead each booking carries an **Audience** (Internal meeting /
-External client) that nudges the recommender (external → premium AV, view).
-
-**Two roles** (switch via the identity chip, bottom-left):
-- **Employee** (Jordan Lee) — finds/requests rooms, sees *My Requests*.
-- **Planner** (Ava Mendel) — full board, allocates requests, recommendations.
-
-**Three conference centres, three booking policies** — the action on each room
-follows its centre:
-
-| Centre | Policy | Employee experience |
-|--------|--------|---------------------|
-| HQ Tower | **Self-service** | Pick a room → **Book now** (instant) |
-| Annex | **Request + preferred** | Request and *name a desired room* → planner confirms |
-| Executive Client Centre | **Allocation-only** | Request a space → **planner allocates** the suite |
-
-**Request → allocate loop:** an employee request lands in the planner's
-**Requests** queue. The planner opens it, sees AI-ranked rooms *in that centre*
-(only free, big-enough rooms selectable; the employee's preferred room is
-starred and pre-selected when free), and confirms — which creates a confirmed
-booking on the Planner Board and marks the request *Allocated*. Planners can
-book any specific room directly; the policy only gates employees.
-
-## Booking journey & SLA timings (v3)
-
-Every booking and request now shows a **step-by-step journey** with how long
-each step takes:
-
-1. **Request submitted / Booking created** — instant
-2. **Room confirmation** — `instant` for self-service, else the centre's
-   allocation SLA (Annex ~4h, Executive Client Centre ~8h)
-3. **Catering order confirmation** — caterer turnaround per item
-   (coffee ~1h, breakfast ~4h, lunch ~8h, canapés ~24h)
-4. **AV & services booking** — team turnaround per item
-   (VC setup ~2h, AV technician ~4h, translation ~24h)
-5. **Fully confirmed — ready**
-
-Catering and AV run **in parallel** once the room is secured, so
-**total ETA = room confirmation + max(catering, AV)**. Example: an Executive
-Client Centre request with a working lunch + AV tech →
-room ~8h, catering ~8h, AV ~4h, **fully confirmed ~16h**.
-
-Where you see it: a compact **SLA strip** on every request card
-(`Room · Catering · AV · Fully confirmed`) with a **View journey** stepper;
-the same journey in the booking-detail drawer; and a live **ETA line** in the
-composer before you submit. SLA values live in `data.js`
-(`centers[].allocSla`, `catering[].confirmSla`, `services[].confirmSla`).
-
-## Refinements (v1.1)
-
-- **Realistic, spread scores** — replaced saturated "everything's 99%" with a
-  weighted model that produces a believable range (e.g. 80% → 9%).
-- **Time-aware availability** — the finder takes a start time + duration and
-  marks rooms **● Available / ● Busy at that time**, naming the clashing booking.
-- **Conflict-blocking** — the booking drawer checks for overlaps live, shows a
-  warning, and disables *Confirm* until the time is free (also enforces 08:00–20:00).
-- **Click-to-time on the planner** — click an empty slot and the start time is
-  inferred from where you clicked.
-- **Persistence** — bookings & dismissed insights survive a page reload via
-  `localStorage`; *Reset demo* on the Planner Board restores the seed data.
+All mocked in `data.js` so the flows are fully interactive offline.
 
 ## Best-in-class systems referenced
-
-- **Commercial:** YAROOMS (Open API + services-at-booking), Condeco & MRI
-  Software (enterprise catering/AV provider workflows), OfficeSpace, MazeMap.
-- **Open source to reuse:** [LibreBooking](https://github.com/LibreBooking/librebooking)
-  (PHP, GPL-3.0, REST API, custom resource attributes for catering/services).
+YAROOMS, Condeco, MRI Software, OfficeSpace, MazeMap; open-source
+[LibreBooking](https://github.com/LibreBooking/librebooking).
