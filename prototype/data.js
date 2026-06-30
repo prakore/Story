@@ -89,15 +89,47 @@ const CATERING_TEMPLATES = {
   ] },
 };
 
-/* ---- ancillary services (global) ---- */
+/* ---- ancillary services (catalog; availability is set per building) ---- */
 const SERVICES = [
-  { id:'s1', name:'AV Technician on standby',   price:120, confirmSla:4,  icon:'🎛️' },
-  { id:'s2', name:'Video conferencing setup',   price:60,  confirmSla:2,  icon:'📹' },
-  { id:'s3', name:'Room reset / deep clean',    price:45,  confirmSla:2,  icon:'🧹' },
-  { id:'s4', name:'Reception & visitor escort', price:75,  confirmSla:4,  icon:'🛎️' },
-  { id:'s5', name:'Whiteboard / flipchart pack',price:15,  confirmSla:1,  icon:'📝' },
-  { id:'s6', name:'Translation / captioning',   price:200, confirmSla:24, icon:'🌐' },
+  { id:'s1', name:'AV Technician on standby',   price:120, confirmSla:4,  icon:'🎛️', provider:'In-house AV',            category:'AV' },
+  { id:'s2', name:'Video conferencing setup',   price:60,  confirmSla:2,  icon:'📹', provider:'In-house AV',            category:'AV' },
+  { id:'s3', name:'Room reset / deep clean',    price:45,  confirmSla:2,  icon:'🧹', provider:'Facilities',             category:'Facilities' },
+  { id:'s4', name:'Reception & visitor escort', price:75,  confirmSla:4,  icon:'🛎️', provider:'Front of house',         category:'Hospitality' },
+  { id:'s5', name:'Whiteboard / flipchart pack',price:15,  confirmSla:1,  icon:'📝', provider:'Facilities',             category:'Supplies' },
+  { id:'s6', name:'Translation / captioning',   price:200, confirmSla:24, icon:'🌐', provider:'Language services (vendor)', category:'Specialist' },
+  { id:'s7', name:'Hybrid event production',    price:450, confirmSla:48, icon:'🎥', provider:'Events team',            category:'AV' },
+  { id:'s8', name:'On-site IT support',         price:90,  confirmSla:3,  icon:'💻', provider:'IT service desk',        category:'IT' },
 ];
+
+/* ---- amenity catalog (master list with rich detail) ---- */
+const AMENITY_META = {
+  '4K display':        {category:'AV',           icon:'🖥️', desc:'Wall-mounted 4K display with HDMI & USB-C',   chargeable:false, bookable:false},
+  'Dual screen':       {category:'AV',           icon:'🖥️', desc:'Two displays for side-by-side content',       chargeable:false, bookable:false},
+  'VC suite':          {category:'AV',           icon:'📹', desc:'Integrated video-conferencing (Teams/Zoom)',  chargeable:false, bookable:false},
+  'Dedicated AV booth':{category:'AV',           icon:'🎛️', desc:'Control booth for produced sessions',         chargeable:true,  bookable:true},
+  'PA system':         {category:'AV',           icon:'🔊', desc:'Public-address / sound reinforcement',        chargeable:false, bookable:false},
+  'Phone for dial-in': {category:'AV',           icon:'☎️', desc:'Conference phone for audio dial-in',          chargeable:false, bookable:false},
+  'Hearing loop':      {category:'Accessibility',icon:'🦻', desc:'Induction loop for hearing aids',             chargeable:false, bookable:false},
+  'Step-free access':  {category:'Accessibility',icon:'♿', desc:'Level / lift access, no steps',               chargeable:false, bookable:false},
+  'Skyline view':      {category:'Comfort',      icon:'🌆', desc:'External windows with a city view',           chargeable:false, bookable:false},
+  'Natural light':     {category:'Comfort',      icon:'🌞', desc:'Daylight from external windows',              chargeable:false, bookable:false},
+  'Coffee station':    {category:'Comfort',      icon:'☕', desc:'In-room hot-drinks station',                  chargeable:false, bookable:false},
+  'Whiteboard wall':   {category:'Collaboration',icon:'🧑‍🏫', desc:'Floor-to-ceiling writable wall',             chargeable:false, bookable:false},
+  'Stage':             {category:'Layout',       icon:'🎤', desc:'Raised stage / podium area',                  chargeable:false, bookable:false},
+  'Catering-ready':    {category:'Catering',     icon:'🍽️', desc:'Cleared surfaces & power for catering setup', chargeable:false, bookable:false},
+};
+const amenityCatalog = AMENITIES.map((n,i)=>({ id:'am'+_pad(i+1,2), name:n, ...(AMENITY_META[n]||{category:'General',icon:'•',desc:'',chargeable:false,bookable:false}) }));
+
+/* ---- caterers (vendors); buildings are assigned one or more ---- */
+const CATERERS = {
+  cat_metro:   { id:'cat_metro',   name:'Metro Catering Co',  cuisine:'International buffet & working lunch', rating:4.5, phone:'+1 555 0100', hours:'Mon–Fri 07:00–17:00', items:_menu('metro',false) },
+  cat_gourmet: { id:'cat_gourmet', name:'Gourmet Plate',      cuisine:'Premium / fine dining & receptions',  rating:4.8, phone:'+1 555 0144', hours:'Mon–Sat 08:00–20:00', items:_menu('gourmet',true) },
+  cat_quick:   { id:'cat_quick',   name:'Quick Bites',        cuisine:'Beverages, snacks & grab-and-go',     rating:4.3, phone:'+1 555 0188', hours:'Daily 07:00–18:00', items:[
+    {id:'quick-bev',  name:'Barista Coffee & Tea Cart', type:'beverage', pricePerHead:6, cutoffHours:2, choiceGroups:[]},
+    {id:'quick-snack',name:'Afternoon Snacks & Pastries',type:'snack',   pricePerHead:9, cutoffHours:4, choiceGroups:[]},
+  ] },
+  cat_green:   { id:'cat_green',   name:'Green Leaf Kitchen', cuisine:'Vegetarian & vegan',                  rating:4.7, phone:'+1 555 0166', hours:'Mon–Fri 08:00–16:00', items:_menu('green',false) },
+};
 
 /* ---- generate the estate ---- */
 function buildEstate(){
@@ -144,6 +176,20 @@ function buildEstate(){
 }
 const _estate = buildEstate();
 
+/* ---- assign caterers + service availability per building ---- */
+function assignVendors(buildings){
+  const bc={}, bs={}; const allSvc=SERVICES.map(s=>s.id);
+  buildings.forEach((b,i)=>{
+    const list=['cat_metro'];
+    if(i%2) list.push('cat_gourmet'); else list.push('cat_quick');
+    if(i%3===0) list.push('cat_green');
+    bc[b.id]=list;
+    bs[b.id]= (i%4===0) ? allSvc.filter(x=>x!=='s6'&&x!=='s7') : (i%5===0 ? allSvc.filter(x=>x!=='s7') : allSvc);
+  });
+  return {bc,bs};
+}
+const _vend=assignVendors(_estate.buildings);
+
 /* ---- seed today's bookings + a couple of requests in a home building ---- */
 function seedBookings(spaces){
   const home = spaces.filter(s=>s.buildingId==='bld-001');
@@ -162,7 +208,12 @@ const DATA = {
   buildings: _estate.buildings,
   spaces: _estate.spaces,
   cateringTemplates: CATERING_TEMPLATES,
-  cateringOverrides: {},          // buildingId -> items[]  (set via Catering Setup)
+  caterers: CATERERS,
+  buildingCaterers: _vend.bc,     // buildingId -> [catererId]
+  catererOverrides: {},           // catererId -> items[]  (menu edits)
+  buildingServices: _vend.bs,     // buildingId -> [serviceId] available
+  amenityCatalog: amenityCatalog, // master amenity list
+  spaceOverrides: {},             // spaceId -> edited fields
   services: SERVICES,
   setupTypes: SETUP_TYPES,
   eventTypes: EVENT_TYPES,

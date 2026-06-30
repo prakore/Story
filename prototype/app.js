@@ -13,6 +13,7 @@ const fmtHr=h=>{const hh=Math.floor(h),mm=Math.round((h%1)*60);return `${String(
 const t2d=t=>{const [h,m]=String(t).split(':').map(Number);return h+(m||0)/60;};
 const TODAY='2026-06-30';
 const NOW={date:TODAY,hour:9};                 // notional "now" for cutoff demos
+const SPACE_TYPES_LIST=['Huddle','Meeting Room','Conference','Boardroom','Training','Theatre','Banquet'];
 
 /* roles */
 const PERSONAS={ employee:{name:'Jordan Lee',role:'Employee · Sales',avatar:'JL'}, planner:{name:'Ava Mendel',role:'Workplace Lead',avatar:'AM'} };
@@ -20,15 +21,26 @@ let currentRole='employee';
 const me=()=>PERSONAS[currentRole];
 
 /* persistence */
-const STORE='convene.v4';
-function save(){ try{ localStorage.setItem(STORE,JSON.stringify({ bookings:DATA.bookings, requests:DATA.requests, insights:DATA.insights, overrides:DATA.cateringOverrides, fav:DATA.user.favoriteBuildingId })); }catch(e){} }
-function load(){ try{ const s=JSON.parse(localStorage.getItem(STORE)||'null'); if(s){ DATA.bookings=s.bookings||DATA.bookings; DATA.requests=s.requests||DATA.requests; DATA.insights=s.insights||DATA.insights; DATA.cateringOverrides=s.overrides||{}; DATA.user.favoriteBuildingId=s.fav||null; } }catch(e){} }
+const STORE='convene.v5';
+function save(){ try{ localStorage.setItem(STORE,JSON.stringify({ bookings:DATA.bookings, requests:DATA.requests, insights:DATA.insights,
+  catererOverrides:DATA.catererOverrides, buildingCaterers:DATA.buildingCaterers, buildingServices:DATA.buildingServices,
+  spaceOverrides:DATA.spaceOverrides, amenityAdds:DATA.amenityCatalog.filter(a=>a.custom), fav:DATA.user.favoriteBuildingId })); }catch(e){} }
+function load(){ try{ const s=JSON.parse(localStorage.getItem(STORE)||'null'); if(s){ DATA.bookings=s.bookings||DATA.bookings; DATA.requests=s.requests||DATA.requests; DATA.insights=s.insights||DATA.insights;
+  DATA.catererOverrides=s.catererOverrides||{}; DATA.buildingCaterers=s.buildingCaterers||DATA.buildingCaterers; DATA.buildingServices=s.buildingServices||DATA.buildingServices;
+  DATA.spaceOverrides=s.spaceOverrides||{}; (s.amenityAdds||[]).forEach(a=>{ if(!DATA.amenityCatalog.some(x=>x.name===a.name)) DATA.amenityCatalog.push(a); });
+  DATA.user.favoriteBuildingId=s.fav||null; applyOverrides(); } }catch(e){} }
 function resetDemo(){ localStorage.removeItem(STORE); location.reload(); }
 
-/* ---- catering helpers ---- */
-const menuFor=bId=> DATA.cateringOverrides[bId] || (building(bId) ? DATA.cateringTemplates[building(bId).cateringTemplate].items : DATA.cateringTemplates.tpl_std.items);
-const catItem=(bId,itemId)=> menuFor(bId).find(i=>i.id===itemId) || Object.values(DATA.cateringTemplates).flatMap(t=>t.items).find(i=>i.id===itemId);
+/* ---- catering / service helpers ---- */
+const caterer=id=>DATA.caterers[id];
+const buildingCatererIds=bId=> DATA.buildingCaterers[bId] || ['cat_metro'];
+const catererItems=cid=> DATA.catererOverrides[cid] || DATA.caterers[cid].items;
+function menuFor(bId){ const ids=bId?buildingCatererIds(bId):['cat_metro','cat_quick']; const out=[]; ids.forEach(cid=>catererItems(cid).forEach(it=>out.push({...it,catererId:cid,catererName:DATA.caterers[cid].name}))); return out; }
+const catItem=(bId,itemId)=> menuFor(bId).find(i=>i.id===itemId) || (function(){ for(const c of Object.values(DATA.caterers)){ const it=catererItems(c.id).find(x=>x.id===itemId); if(it) return {...it,catererId:c.id,catererName:c.name}; } return null; })();
 const CAT_SLA={beverage:1,snack:2,lunch:8,buffet:12,reception:24};
+const servicesForBuilding=bId=> (DATA.buildingServices[bId]||DATA.services.map(s=>s.id)).map(svc).filter(Boolean);
+const amenityByName=n=>DATA.amenityCatalog.find(a=>a.name===n);
+function applyOverrides(){ for(const id in (DATA.spaceOverrides||{})){ const sp=space(id); if(sp) Object.assign(sp,DATA.spaceOverrides[id]); } }
 const hoursUntil=(date,start)=>{ const d=(new Date(date)-new Date(NOW.date))/3.6e6/24; return Math.round(d)*24 + (start-NOW.hour); };
 const pastCutoff=(item,date,start)=> hoursUntil(date,start) < item.cutoffHours;
 const fmtCut=h=> h<24?`${h}h before`:`${h/24===1?'1 day':h/24+' days'} before`;
@@ -52,12 +64,12 @@ function applyRole(){
   $$('#nav [data-roles]').forEach(b=>b.style.display=b.dataset.roles.includes(currentRole)?'':'none');
   $('#lbl-requests').textContent=currentRole==='planner'?'Requests':'My Requests';
   const cur=$('.screen.on')?.id.replace('screen-','');
-  const allowed=currentRole==='planner'?['book','requests','dashboard','planner','catering','recs']:['book','requests'];
+  const allowed=currentRole==='planner'?['book','requests','dashboard','planner','explorer','amenities','services','catering','recs']:['book','requests'];
   if(!allowed.includes(cur)) go('book');
   renderRequests(); renderReqCount();
 }
 function renderReqCount(){ const n=DATA.requests.filter(r=>r.status==='pending').length; const el=$('#req-count'); el.textContent=(currentRole==='planner'&&n)?n:''; el.style.display=el.textContent?'':'none'; }
-$('#role-switch').onclick=()=>{ currentRole=currentRole==='planner'?'employee':'planner'; applyRole(); if(currentRole==='planner'){renderDashboard();renderPlanner();renderAdminHub();renderRecs();} toast(`Now viewing as ${me().name} (${currentRole})`); };
+$('#role-switch').onclick=()=>{ currentRole=currentRole==='planner'?'employee':'planner'; applyRole(); if(currentRole==='planner'){renderDashboard();renderPlanner();renderAdminHub();renderServicesAdmin();renderAmenities();renderExplorer();renderRecs();} toast(`Now viewing as ${me().name} (${currentRole})`); };
 
 /* theme */
 const THEME_KEY='convene.theme';
@@ -158,11 +170,19 @@ function detailFieldsHTML(){
       <div class="fg"><label>Setup type</label><select id="wz-setup" style="width:100%">${DATA.setupTypes.map(x=>`<option ${x===wz.setup?'selected':''}>${x}</option>`).join('')}</select></div>
       <div class="fg"><label>Event type</label><select id="wz-event" style="width:100%">${DATA.eventTypes.map(x=>`<option ${x===wz.eventType?'selected':''}>${x}</option>`).join('')}</select></div></div>`;
 }
+function servicesRowsHTML(bId){
+  return servicesForBuilding(bId).map(s=>{const on=wz.services.has(s.id);return `<div class="opt"><div><div class="nm">${s.icon} ${s.name}</div><div class="sub">${money(s.price)} · ${s.provider} · confirms in ${fmtSla(s.confirmSla)}</div></div><button class="add ${on?'on':''}" data-svc="${s.id}">${on?'✓':'+'}</button></div>`;}).join('');
+}
+function cateringSectionsHTML(bId){
+  const ids=bId?buildingCatererIds(bId):['cat_metro','cat_quick'];
+  return ids.map(cid=>{const c=DATA.caterers[cid];const items=catererItems(cid);
+    return `<div class="caterer-sec"><div class="caterer-h">🍽️ ${c.name} <span class="muted">· ${c.cuisine} · ⭐${c.rating}</span></div>
+      ${items.map(it=>cateringItemHTML(it,bId)).join('')}</div>`;}).join('');
+}
 function extrasInlineHTML(){
-  const menu=menuFor(wz.buildingId);
   return `<div class="card" style="margin-top:14px"><div class="section-h" style="margin-top:0"><h2 style="font-size:14px">🛎️ Services</h2></div>
-    ${DATA.services.map(s=>{const on=wz.services.has(s.id);return `<div class="opt"><div><div class="nm">${s.icon} ${s.name}</div><div class="sub">${money(s.price)} · ${fmtSla(s.confirmSla)}</div></div><button class="add ${on?'on':''}" data-svc="${s.id}">${on?'✓':'+'}</button></div>`;}).join('')}
-    <div class="section-h"><h2 style="font-size:14px">🍽️ Catering</h2></div>${menu.map(it=>cateringItemHTML(it,wz.buildingId)).join('')}</div>`;
+    ${servicesRowsHTML(wz.buildingId)}
+    <div class="section-h"><h2 style="font-size:14px">🍽️ Catering</h2></div>${cateringSectionsHTML(wz.buildingId)}</div>`;
 }
 
 /* --- EXPRESS: everything on one screen --- */
@@ -257,8 +277,12 @@ function stepDetails(){
       <div style="font-size:17px;font-weight:750;margin:6px 0 2px">${DATA.user.center}</div>
       <div class="muted" style="font-size:11.5px">From your profile in the space management system.</div>
       <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
-      ${b?`<div style="font-size:12.5px"><b>${b.name}</b><div class="muted">${b.city} · ${b.region}</div><div class="muted" style="margin-top:4px">${b.floors.length} floors · ${DATA.spaces.filter(s=>s.buildingId===b.id).length} spaces · catering: ${DATA.cateringTemplates[b.cateringTemplate].name}</div></div>
-        <div class="ai-banner" style="margin-top:12px"><div class="dot">🏢</div><div><b>Building selected</b><p>Next step lists all rooms in ${b.name}.</p></div></div>`
+      ${b?`<div style="font-size:12.5px"><b>${b.name}</b><div class="muted">${b.city} · ${b.region} · ${b.externalId}</div><div class="muted" style="margin-top:4px">${b.floors.length} floors · ${DATA.spaces.filter(s=>s.buildingId===b.id).length} spaces</div></div>
+        <div style="font-size:12px;font-weight:650;color:var(--mut);margin-top:14px">🍽️ Catering services here</div>
+        <div class="chips" style="margin-top:6px">${buildingCatererIds(b.id).map(id=>`<span class="chip b">${DATA.caterers[id].name}</span>`).join('')}</div>
+        <div style="font-size:12px;font-weight:650;color:var(--mut);margin-top:12px">🛎️ Services available (${servicesForBuilding(b.id).length})</div>
+        <div class="chips" style="margin-top:6px">${servicesForBuilding(b.id).map(s=>`<span class="chip">${s.icon} ${s.name.split(' ').slice(0,2).join(' ')}</span>`).join('')}</div>
+        <div class="ai-banner" style="margin-top:14px"><div class="dot">🏢</div><div><b>Building selected</b><p>Next step lists all rooms in ${b.name}.</p></div></div>`
       :`<div class="ai-banner" style="margin:0"><div class="dot">📥</div><div><b>No building chosen</b><p>You’ll submit a <b>Request a Room</b> and a planner allocates one in your centre.</p></div></div>`}
     </div>
   </div>
@@ -291,17 +315,18 @@ function spaceCard(sp,o={}){
 
 /* --- step 3: services --- */
 function stepServices(){
-  $('#wz-body').innerHTML=`<div class="card"><div class="section-h"><h2 style="font-size:15px">🛎️ Services</h2><span class="muted" style="font-size:12px">Optional add-ons</span></div>
-    ${DATA.services.map(s=>{const on=wz.services.has(s.id);return `<div class="opt"><div><div class="nm">${s.icon} ${s.name}</div><div class="sub">${money(s.price)} · confirms in ${fmtSla(s.confirmSla)}</div></div><button class="add ${on?'on':''}" data-svc="${s.id}">${on?'✓':'+'}</button></div>`;}).join('')}</div>
+  const b=wz.buildingId?building(wz.buildingId):null;
+  $('#wz-body').innerHTML=`<div class="card"><div class="section-h"><h2 style="font-size:15px">🛎️ Services</h2><span class="muted" style="font-size:12px">${b?`Available at ${b.name}`:'Optional add-ons'}</span></div>
+    ${servicesRowsHTML(wz.buildingId)}</div>
     <div class="wz-nav"><button class="btn ghost" id="wz-back">← Back</button><button class="btn primary" id="wz-next">Next: catering →</button></div>`;
 }
 
-/* --- step 4: catering (per-building, multi-choice, cutoff) --- */
+/* --- step 4: catering (per-building caterers, multi-choice, cutoff) --- */
 function stepCatering(){
-  const bId=wz.buildingId; const menu=menuFor(bId);
-  const note=bId?`Menu for <b>${building(bId).name}</b> (${DATA.cateringTemplates[building(bId).cateringTemplate].name}).`:`Standard menu shown — final menu is set once a building is allocated.`;
+  const bId=wz.buildingId;
+  const note=bId?`${buildingCatererIds(bId).length} caterer(s) serve <b>${building(bId).name}</b>.`:`Default menu shown — caterers are confirmed once a building is allocated.`;
   $('#wz-body').innerHTML=`<div class="card"><div class="section-h"><h2 style="font-size:15px">🍽️ Catering</h2><span class="muted" style="font-size:12px">${note}</span></div>
-    ${menu.map(it=>cateringItemHTML(it,bId)).join('')}</div>
+    ${cateringSectionsHTML(bId)}</div>
     <div class="wz-nav"><button class="btn ghost" id="wz-back">← Back</button><button class="btn primary" id="wz-next">Review →</button></div>`;
 }
 function chosen(itemId){ return wz.catering.find(c=>c.itemId===itemId); }
@@ -532,34 +557,122 @@ function openBookingDetail(b){
   drawer.classList.add('on'); scrim.classList.add('on');
 }
 
-/* ============================================================ CATERING SETUP — master-detail admin hub ============================================================ */
+/* ============================================================ ADMIN: shared building picker ============================================================ */
+function buildingListHTML(activeId,query){
+  const q=(query||'').toLowerCase();
+  const list=DATA.buildings.filter(b=>!q||b.label.toLowerCase().includes(q)||b.externalId.toLowerCase().includes(q)).slice(0,80);
+  return list.map(b=>`<button class="hub-item ${b.id===activeId?'on':''}" data-adminb="${b.id}"><b>${b.name}</b><span>${b.city} · ${b.region} · ${b.externalId}</span></button>`).join('')||'<div class="empty" style="padding:20px">No match</div>';
+}
+
+/* ============================================================ CATERING SETUP — per building, multiple caterers ============================================================ */
 let adminBuildingId=null, adminQuery='';
-function ensureOverride(bId){ if(!DATA.cateringOverrides[bId]) DATA.cateringOverrides[bId]=JSON.parse(JSON.stringify(menuFor(bId))); return DATA.cateringOverrides[bId]; }
-function cateringSetupCard(it,bId){
-  const groups=(it.choiceGroups||[]).map(g=>`<div class="cg"><div class="cg-h">${g.label} <span class="muted">— pick ${g.pick}</span></div><div class="cg-opts">${g.options.map(o=>`<span class="opt-chip on">${o.name}${o.veg?' 🌱':''}</span>`).join('')}<button class="opt-chip add-opt" data-addopt="${bId}|${it.id}|${g.id}">+ option</button></div></div>`).join('');
-  return `<div class="card" style="margin-bottom:12px"><div class="ci-head"><div><div class="nm">${it.name} <span class="cat-type ${it.type}">${it.type}</span></div><div class="sub">${money(it.pricePerHead)}/head</div></div>
-    <div style="display:flex;align-items:center;gap:8px"><label class="muted" style="font-size:11.5px;margin:0">cutoff (h)</label><input type="number" min="0" value="${it.cutoffHours}" data-cutoff="${bId}|${it.id}" style="width:72px"></div></div>
+function ensureCatOverride(cid){ if(!DATA.catererOverrides[cid]) DATA.catererOverrides[cid]=JSON.parse(JSON.stringify(DATA.caterers[cid].items)); return DATA.catererOverrides[cid]; }
+function cateringSetupCard(it,cid){
+  const groups=(it.choiceGroups||[]).map(g=>`<div class="cg"><div class="cg-h">${g.label} <span class="muted">— pick ${g.pick}</span></div><div class="cg-opts">${g.options.map(o=>`<span class="opt-chip on">${o.name}${o.veg?' 🌱':''}</span>`).join('')}<button class="opt-chip add-opt" data-addopt="${cid}|${it.id}|${g.id}">+ option</button></div></div>`).join('');
+  return `<div class="ci"><div class="ci-head"><div><div class="nm">${it.name} <span class="cat-type ${it.type}">${it.type}</span></div><div class="sub">${money(it.pricePerHead)}/head</div></div>
+    <div style="display:flex;align-items:center;gap:8px"><label class="muted" style="font-size:11.5px;margin:0">cutoff (h)</label><input type="number" min="0" value="${it.cutoffHours}" data-cutoff="${cid}|${it.id}" style="width:72px"></div></div>
     ${groups?`<div class="ci-groups" style="margin-top:10px">${groups}</div>`:'<div class="muted" style="font-size:12px;margin-top:8px">Simple item — no choices.</div>'}</div>`;
 }
 function renderAdminHub(){
   if(!adminBuildingId) adminBuildingId=DATA.user.favoriteBuildingId||'bld-001';
-  const q=adminQuery.toLowerCase();
-  const list=DATA.buildings.filter(b=>!q||b.label.toLowerCase().includes(q)).slice(0,80);
-  $('#ct-list').innerHTML=list.map(b=>{const m=menuFor(b.id);return `<button class="hub-item ${b.id===adminBuildingId?'on':''}" data-adminb="${b.id}"><b>${b.name}</b><span>${b.city} · ${m.length} items${DATA.cateringOverrides[b.id]?' · edited':''}</span></button>`;}).join('')||'<div class="empty" style="padding:20px">No match</div>';
-  const b=building(adminBuildingId); const menu=menuFor(adminBuildingId);
+  $('#ct-list').innerHTML=buildingListHTML(adminBuildingId,adminQuery);
+  const b=building(adminBuildingId); const ids=buildingCatererIds(adminBuildingId);
+  const unassigned=Object.values(DATA.caterers).filter(c=>!ids.includes(c.id));
   $('#ct-detail').innerHTML=`<div class="card" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <div><div style="font-size:16px;font-weight:700">${b.name} <span class="muted" style="font-weight:500">· ${b.city} · ${b.region}</span></div>
-        <div class="muted" style="font-size:12px;margin-top:3px">Template: <b>${DATA.cateringTemplates[b.cateringTemplate].name}</b>${DATA.cateringOverrides[b.id]?' · overridden for this building':''} · ${menu.length} items · ${b.externalId}</div></div>
-      <button class="btn sm primary" id="ct-add">+ Add catering item</button></div>
-    ${menu.map(it=>cateringSetupCard(it,adminBuildingId)).join('')}`;
+      <div><div style="font-size:16px;font-weight:700">${b.name} <span class="muted" style="font-weight:500">· ${b.city} · ${b.externalId}</span></div>
+        <div class="muted" style="font-size:12px;margin-top:3px">${ids.length} caterer(s) serving this building · catering shows at the start of every booking here.</div></div>
+      ${unassigned.length?`<div style="display:flex;gap:6px;align-items:center"><select id="ct-addcat" style="max-width:180px"><option value="">+ Assign caterer…</option>${unassigned.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select></div>`:''}</div>
+    ${ids.map(cid=>{const c=DATA.caterers[cid];const items=catererItems(cid);
+      return `<div class="card" style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+          <div><div style="font-size:14.5px;font-weight:700">${c.name} <span class="muted" style="font-weight:500;font-size:12px">· ⭐${c.rating}</span></div>
+            <div class="muted" style="font-size:11.5px;margin-top:2px">${c.cuisine} · ${c.phone} · ${c.hours} · ${items.length} items</div></div>
+          <div style="display:flex;gap:6px"><button class="btn sm ghost" data-additem="${cid}">+ Item</button><button class="btn sm ghost" data-rmcat="${cid}">Remove</button></div></div>
+        ${items.map(it=>cateringSetupCard(it,cid)).join('')}</div>`;}).join('')}`;
 }
-$('#ct-search').addEventListener('input',e=>{ adminQuery=e.target.value; renderAdminHub(); const el=$('#ct-search'); el.focus(); });
+$('#ct-search').addEventListener('input',e=>{ adminQuery=e.target.value; renderAdminHub(); $('#ct-search').focus(); });
 $('#ct-list').addEventListener('click',e=>{ const a=e.target.closest('[data-adminb]'); if(a){ adminBuildingId=a.dataset.adminb; renderAdminHub(); } });
-$('#ct-detail').addEventListener('input',e=>{ const c=e.target.closest('[data-cutoff]'); if(c){ const [bId,itemId]=c.dataset.cutoff.split('|'); const it=ensureOverride(bId).find(x=>x.id===itemId); it.cutoffHours=+c.value||0; save(); } });
+$('#ct-detail').addEventListener('input',e=>{ const c=e.target.closest('[data-cutoff]'); if(c){ const [cid,itemId]=c.dataset.cutoff.split('|'); const it=ensureCatOverride(cid).find(x=>x.id===itemId); it.cutoffHours=+c.value||0; save(); } });
+$('#ct-detail').addEventListener('change',e=>{ if(e.target.id==='ct-addcat'&&e.target.value){ DATA.buildingCaterers[adminBuildingId]=[...buildingCatererIds(adminBuildingId),e.target.value]; save(); renderAdminHub(); toast('Caterer assigned'); } });
 $('#ct-detail').addEventListener('click',e=>{
-  if(e.target.closest('#ct-add')){ const bId=adminBuildingId; const name=prompt('Item name (e.g. Premium Buffet):'); if(!name)return; const type=(prompt('Type: buffet / lunch / beverage / snack','buffet')||'buffet').toLowerCase(); const price=+prompt('Price per head ($):','20')||20; const cut=+prompt('Order cutoff (hours before):','24')||24; const m=ensureOverride(bId); m.push({id:'cust-'+Date.now(),name,type,pricePerHead:price,cutoffHours:cut,choiceGroups:(type==='buffet'||type==='lunch')?[{id:'g1',label:'Choices',pick:2,options:[{name:'Option A',veg:true},{name:'Option B',veg:false}]}]:[]}); save(); renderAdminHub(); toast('Catering item added'); return; }
-  const ao=e.target.closest('[data-addopt]'); if(ao){ const [bId,itemId,gid]=ao.dataset.addopt.split('|'); const name=prompt('New option name:'); if(!name)return; const g=ensureOverride(bId).find(x=>x.id===itemId).choiceGroups.find(x=>x.id===gid); g.options.push({name,veg:/veg|salad|fruit|fruit/i.test(name)}); save(); renderAdminHub(); toast('Option added'); }
+  const ai=e.target.closest('[data-additem]'); if(ai){ const cid=ai.dataset.additem; const name=prompt('Item name (e.g. Premium Buffet):'); if(!name)return; const type=(prompt('Type: buffet / lunch / beverage / snack','buffet')||'buffet').toLowerCase(); const price=+prompt('Price per head ($):','20')||20; const cut=+prompt('Order cutoff (hours before):','24')||24; ensureCatOverride(cid).push({id:'cust-'+Date.now(),name,type,pricePerHead:price,cutoffHours:cut,choiceGroups:(type==='buffet'||type==='lunch')?[{id:'g1',label:'Choices',pick:2,options:[{name:'Option A',veg:true},{name:'Option B',veg:false}]}]:[]}); save(); renderAdminHub(); toast('Item added'); return; }
+  const rm=e.target.closest('[data-rmcat]'); if(rm){ const cid=rm.dataset.rmcat; const cur=buildingCatererIds(adminBuildingId); if(cur.length<=1){toast('Keep at least one caterer',false);return;} DATA.buildingCaterers[adminBuildingId]=cur.filter(x=>x!==cid); save(); renderAdminHub(); toast('Caterer removed'); return; }
+  const ao=e.target.closest('[data-addopt]'); if(ao){ const [cid,itemId,gid]=ao.dataset.addopt.split('|'); const name=prompt('New option name:'); if(!name)return; ensureCatOverride(cid).find(x=>x.id===itemId).choiceGroups.find(x=>x.id===gid).options.push({name,veg:/veg|salad|fruit|vegan/i.test(name)}); save(); renderAdminHub(); toast('Option added'); }
 });
+
+/* ============================================================ SERVICES — per-building availability ============================================================ */
+let svcBuildingId=null, svcQuery='';
+function renderServicesAdmin(){
+  if(!svcBuildingId) svcBuildingId=DATA.user.favoriteBuildingId||'bld-001';
+  $('#sv-list').innerHTML=buildingListHTML(svcBuildingId,svcQuery).replace(/data-adminb/g,'data-svcb');
+  const b=building(svcBuildingId); const avail=DATA.buildingServices[svcBuildingId]||DATA.services.map(s=>s.id);
+  const byCat={}; DATA.services.forEach(s=>{(byCat[s.category]=byCat[s.category]||[]).push(s);});
+  $('#sv-detail').innerHTML=`<div class="card" style="margin-bottom:14px"><div style="font-size:16px;font-weight:700">${b.name} <span class="muted" style="font-weight:500">· ${b.externalId}</span></div>
+      <div class="muted" style="font-size:12px;margin-top:3px">${avail.length}/${DATA.services.length} services available · toggle what this building offers. Only available services appear in the booking flow here.</div></div>
+    ${Object.entries(byCat).map(([cat,svcs])=>`<div class="card" style="margin-bottom:12px"><div class="section-h" style="margin-top:0"><h2 style="font-size:13.5px">${cat}</h2></div>
+      ${svcs.map(s=>{const on=avail.includes(s.id);return `<div class="opt"><div><div class="nm">${s.icon} ${s.name}</div><div class="sub">${money(s.price)} · ${s.provider} · confirms in ${fmtSla(s.confirmSla)}</div></div>
+        <label class="switch"><input type="checkbox" ${on?'checked':''} data-svctoggle="${s.id}"><span></span></label></div>`;}).join('')}</div>`).join('')}`;
+}
+$('#sv-search').addEventListener('input',e=>{ svcQuery=e.target.value; renderServicesAdmin(); $('#sv-search').focus(); });
+$('#sv-list').addEventListener('click',e=>{ const a=e.target.closest('[data-svcb]'); if(a){ svcBuildingId=a.dataset.svcb; renderServicesAdmin(); } });
+$('#sv-detail').addEventListener('change',e=>{ const t=e.target.closest('[data-svctoggle]'); if(t){ const id=t.dataset.svctoggle; const cur=new Set(DATA.buildingServices[svcBuildingId]||DATA.services.map(s=>s.id)); t.checked?cur.add(id):cur.delete(id); DATA.buildingServices[svcBuildingId]=DATA.services.map(s=>s.id).filter(x=>cur.has(x)); save(); renderServicesAdmin(); } });
+
+/* ============================================================ AMENITIES — master catalog ============================================================ */
+function renderAmenities(){
+  const byCat={}; DATA.amenityCatalog.forEach(a=>{(byCat[a.category]=byCat[a.category]||[]).push(a);});
+  const count=a=>DATA.spaces.reduce((n,s)=>n+(s.amenities.includes(a.name)?1:0),0);
+  $('#am-body').innerHTML=Object.entries(byCat).map(([cat,list])=>`<div class="section-h"><h2 style="font-size:14px">${cat}</h2></div>
+    <div class="cards" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+    ${list.map(a=>`<div class="card"><div style="display:flex;gap:10px;align-items:center"><div class="am-ic">${a.icon}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:13.5px">${a.name}</div><div class="muted" style="font-size:11.5px">${a.desc||'—'}</div></div></div>
+      <div class="chips" style="margin-top:10px">${a.bookable?'<span class="chip b">bookable</span>':''}${a.chargeable?'<span class="chip">chargeable</span>':'<span class="chip">included</span>'}<span class="chip">in ${count(a)} rooms</span></div></div>`).join('')}</div>`).join('');
+}
+$('#am-add').onclick=()=>{ const name=prompt('Amenity name:'); if(!name)return; if(DATA.amenityCatalog.some(a=>a.name===name)){toast('Already exists',false);return;} const category=prompt('Category (AV / Accessibility / Comfort / Collaboration / Catering / Layout / General):','General')||'General'; const icon=prompt('Icon (emoji):','•')||'•'; const desc=prompt('Short description:','')||''; const chargeable=/^y/i.test(prompt('Chargeable? (y/n)','n')||'n'); DATA.amenityCatalog.push({id:'am'+Date.now(),name,category,icon,desc,chargeable,bookable:chargeable,custom:true}); save(); renderAmenities(); toast('Amenity added to catalog'); };
+
+/* ============================================================ SPACE EXPLORER — Building › Floor › Room tree ============================================================ */
+let treeOpen={b:new Set(),f:new Set()}, treeSel=null, treeQuery='';
+function renderExplorer(){
+  const q=treeQuery.toLowerCase();
+  const blds=DATA.buildings.filter(b=>!q||b.label.toLowerCase().includes(q)).slice(0,60);
+  $('#tree').innerHTML=blds.map(b=>{
+    const bo=treeOpen.b.has(b.id);
+    const floors=bo?b.floors.map(f=>{const fo=treeOpen.f.has(f.id);const sps=DATA.spaces.filter(s=>s.buildingId===b.id&&s.floorId===f.id);
+      return `<div class="tnode tfloor ${fo?'open':''}" data-tf="${f.id}"><span class="tw">${fo?'▾':'▸'}</span>🗂️ ${f.name} <span class="muted">(${sps.length})</span></div>
+        ${fo?sps.map(s=>`<div class="tnode tspace ${treeSel===s.id?'sel':''}" data-ts="${s.id}"><span class="tw"></span>🚪 ${s.name} <span class="muted">· ${s.type} · 👥${s.capacity}</span></div>`).join(''):''}`;}).join(''):'';
+    return `<div class="tnode tbld ${bo?'open':''}" data-tb="${b.id}"><span class="tw">${bo?'▾':'▸'}</span>🏢 <b>${b.name}</b> <span class="muted">· ${b.city}</span></div>${floors}`;
+  }).join('');
+  renderSpaceDetail();
+}
+function renderSpaceDetail(){
+  const el=$('#tree-detail');
+  if(!treeSel){ el.innerHTML='<div class="empty" style="margin-top:0">Select a room in the tree to view & edit every attribute.</div>'; return; }
+  const s=space(treeSel); const b=building(s.buildingId);
+  const owned=new Set(s.amenities);
+  el.innerHTML=`<div class="card"><div style="font-size:17px;font-weight:700">${s.name}</div>
+    <div class="muted" style="font-size:12px;margin-top:2px">${b.name} · ${b.city} · Floor ${s.floor}</div>
+    <div class="kv"><span>Space external ID</span><b>${s.externalId}</b></div>
+    <div class="row2" style="margin-top:12px">
+      <div class="fg"><label>Name</label><input data-edit="name" value="${s.name.replace(/"/g,'&quot;')}"></div>
+      <div class="fg"><label>Common name</label><input data-edit="commonName" value="${(s.commonName||'').replace(/"/g,'&quot;')}"></div></div>
+    <div class="row2">
+      <div class="fg"><label>Space type</label><select data-edit="type">${SPACE_TYPES_LIST.map(t=>`<option ${t===s.type?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="fg"><label>Capacity</label><input type="number" min="1" data-edit="capacity" value="${s.capacity}"></div></div>
+    <div class="row2">
+      <div class="fg"><label>Setup (mins)</label><input type="number" min="0" data-edit="setupMins" value="${s.setupMins}"></div>
+      <div class="fg"><label>Teardown (mins)</label><input type="number" min="0" data-edit="teardownMins" value="${s.teardownMins}"></div></div>
+    <div class="fg"><label>Hourly rate ($)</label><input type="number" min="0" data-edit="rate" value="${s.rate}"></div>
+    <div class="fg"><label>Amenities <span class="muted">(click to toggle — from the catalog)</span></label>
+      <div class="cg-opts">${DATA.amenityCatalog.map(a=>`<button class="opt-chip ${owned.has(a.name)?'on':''}" data-amtoggle="${a.name}">${a.icon} ${a.name}</button>`).join('')}</div></div>
+  </div>`;
+}
+function editSpace(field,val){ const s=space(treeSel); s[field]=val; (DATA.spaceOverrides[treeSel]=DATA.spaceOverrides[treeSel]||{})[field]=val; save(); }
+$('#tree-search').addEventListener('input',e=>{ treeQuery=e.target.value; renderExplorer(); $('#tree-search').focus(); });
+$('#tree').addEventListener('click',e=>{
+  const tb=e.target.closest('[data-tb]'); if(tb){ const id=tb.dataset.tb; treeOpen.b.has(id)?treeOpen.b.delete(id):treeOpen.b.add(id); renderExplorer(); return; }
+  const tf=e.target.closest('[data-tf]'); if(tf){ const id=tf.dataset.tf; treeOpen.f.has(id)?treeOpen.f.delete(id):treeOpen.f.add(id); renderExplorer(); return; }
+  const ts=e.target.closest('[data-ts]'); if(ts){ treeSel=ts.dataset.ts; renderExplorer(); }
+});
+$('#tree-detail').addEventListener('input',e=>{ const ed=e.target.closest('[data-edit]'); if(ed){ let v=ed.value; if(['capacity','setupMins','teardownMins','rate'].includes(ed.dataset.edit)) v=+v||0; editSpace(ed.dataset.edit,v); if(ed.dataset.edit==='name'||ed.dataset.edit==='capacity'||ed.dataset.edit==='type') renderExplorer(); } });
+$('#tree-detail').addEventListener('click',e=>{ const am=e.target.closest('[data-amtoggle]'); if(am){ const s=space(treeSel); const n=am.dataset.amtoggle; const set=new Set(s.amenities); set.has(n)?set.delete(n):set.add(n); s.amenities=[...set]; (DATA.spaceOverrides[treeSel]=DATA.spaceOverrides[treeSel]||{}).amenities=s.amenities; save(); renderSpaceDetail(); } });
 
 /* ============================================================ DASHBOARD / RECS ============================================================ */
 function renderDashboard(){
@@ -591,5 +704,5 @@ applyTheme((()=>{try{return localStorage.getItem(THEME_KEY)||'corporate';}catch(
 wz=freshWizard();
 applyRole();
 renderBook(); renderRequests(); renderReqCount();
-renderDashboard(); renderPlanner(); renderAdminHub(); renderRecs();
+renderDashboard(); renderPlanner(); renderAdminHub(); renderServicesAdmin(); renderAmenities(); renderExplorer(); renderRecs();
 go('book');

@@ -93,6 +93,36 @@ confirmation → AV booking → ready. Catering & AV run in parallel once the ro
 secured, so **total = room confirmation + max(catering, AV)**. SLAs live in
 `data.js` (`allocSla`, per-catering-type, `services[].confirmSla`).
 
+## Admin & configuration (planner role)
+
+- **Space Explorer** — a **Building › Floor › Room tree**; select any room to view/edit
+  every attribute (name, common name, type, capacity, **setup/teardown**, rate,
+  external ID) and toggle **amenities** from the catalog.
+- **Amenities Catalog** — master list of amenities with full detail (category, icon,
+  description, chargeable/bookable, and how many rooms use each); add new amenities.
+- **Services by Building** — allocate which ancillary services each building offers
+  (provider, category, price, SLA); only available services show in that building's
+  booking flow.
+- **Catering** — per building, assign **one or more caterers** (Metro, Gourmet Plate,
+  Quick Bites, Green Leaf…), each with its own multi-choice menu and per-item order
+  cutoffs. A building's caterers are **shown at the start of every booking** there.
+
+## How this addresses Accruent EMS shortcomings
+
+Reviews of EMS (G2 / TrustRadius / Gartner) repeatedly cite the same issues — this
+prototype is designed to fix them:
+
+| EMS shortcoming | Convene approach |
+|---|---|
+| Clunky, dated UI; steep learning curve | Clean, professional, themeable UI |
+| Too many steps to book | Three journeys incl. one-screen **Express** and a **Grid** |
+| Rigid data (long names crash it) | Plain text fields, no fragile limits; nothing crashes on input |
+| Cumbersome navigation; buried space data | **Space Explorer** tree exposes every space attribute |
+| Painful Outlook/Exchange setup, **no API** | Designed around system integrations (Space Mgmt, M365) + data layer |
+| Complex admin config needing consultants | Simple per-building **Amenities / Services / Catering** screens |
+
+## Where real data would come from
+
 ## Where real data would come from
 
 | Data | Source system |
