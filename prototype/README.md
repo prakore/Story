@@ -53,6 +53,32 @@ Software, OfficeSpace, MazeMap) integrate internal systems:
 In this prototype everything is mocked in `data.js` so the flows are fully
 interactive offline.
 
+## Internal + external, roles & per-centre policy (v2)
+
+Used for **both internal meetings and external client visits** — there is no
+"client tier"; instead each booking carries an **Audience** (Internal meeting /
+External client) that nudges the recommender (external → premium AV, view).
+
+**Two roles** (switch via the identity chip, bottom-left):
+- **Employee** (Jordan Lee) — finds/requests rooms, sees *My Requests*.
+- **Planner** (Ava Mendel) — full board, allocates requests, recommendations.
+
+**Three conference centres, three booking policies** — the action on each room
+follows its centre:
+
+| Centre | Policy | Employee experience |
+|--------|--------|---------------------|
+| HQ Tower | **Self-service** | Pick a room → **Book now** (instant) |
+| Annex | **Request + preferred** | Request and *name a desired room* → planner confirms |
+| Executive Client Centre | **Allocation-only** | Request a space → **planner allocates** the suite |
+
+**Request → allocate loop:** an employee request lands in the planner's
+**Requests** queue. The planner opens it, sees AI-ranked rooms *in that centre*
+(only free, big-enough rooms selectable; the employee's preferred room is
+starred and pre-selected when free), and confirms — which creates a confirmed
+booking on the Planner Board and marks the request *Allocated*. Planners can
+book any specific room directly; the policy only gates employees.
+
 ## Refinements (v1.1)
 
 - **Realistic, spread scores** — replaced saturated "everything's 99%" with a

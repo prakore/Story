@@ -27,7 +27,11 @@ a{color:var(--accent);text-decoration:none}
 .nav button .ic{width:18px;text-align:center;font-size:15px}
 .nav button:hover{background:var(--panel);color:var(--txt)}
 .nav button.on{background:linear-gradient(90deg,rgba(99,102,241,.22),rgba(139,92,246,.10));color:#fff;box-shadow:inset 0 0 0 1px var(--line)}
-.side .me{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px;border-radius:var(--r2);background:var(--panel)}
+.side .me{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px;border-radius:var(--r2);background:var(--panel);width:100%;text-align:left;box-shadow:inset 0 0 0 1px var(--line)}
+.side .me:hover{background:var(--panel2)}
+.side .me .swap{margin-left:auto;color:var(--accent);font-size:15px;font-weight:700}
+.pill{font-size:10px;font-weight:800;background:var(--bad);color:#fff;border-radius:20px;padding:1px 7px;margin-left:auto}
+.nav button{position:relative}
 .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#22d3ee,#6366f1);display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
 
 /* main */
@@ -159,6 +163,41 @@ a{color:var(--accent);text-decoration:none}
 .avail{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);padding:4px 9px;border-radius:20px;font-size:10.5px;font-weight:700;display:flex;gap:5px;align-items:center}
 .avail.ok{color:#6ee7b7}.avail.no{color:#fda4af}
 .bk.ghosted{outline:2px dashed rgba(255,255,255,.5);outline-offset:-2px}
+
+/* policy chips on room cards */
+.policy{position:absolute;bottom:10px;right:10px;font-size:10px;font-weight:750;padding:4px 9px;border-radius:20px;backdrop-filter:blur(6px);background:rgba(0,0,0,.45)}
+.policy.self{color:#6ee7b7}.policy.request_pref{color:#fcd34d}.policy.allocate{color:#c4b5fd}
+
+/* centres legend */
+.legend-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.legend-row .lc{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;flex:1;min-width:240px}
+.legend-row .lc .d{font-size:18px}
+.legend-row .lc b{font-size:13px}.legend-row .lc p{font-size:11px;color:var(--mut);margin-top:2px}
+.legend-row .lc .pol{font-size:10px;font-weight:750;padding:2px 7px;border-radius:6px;margin-left:auto;white-space:nowrap}
+.pol.self{background:rgba(52,211,153,.16);color:#6ee7b7}.pol.request_pref{background:rgba(251,191,36,.16);color:#fcd34d}.pol.allocate{background:rgba(167,139,250,.18);color:#c4b5fd}
+
+/* request cards + allocation panel */
+.req{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg,var(--panel),var(--bg2));padding:18px}
+.req .rh{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.req h3{font-size:15px;font-weight:700}
+.req .who{font-size:12px;color:var(--mut);margin-top:3px}
+.req .grid{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:12px;font-size:12.5px;color:var(--mut)}
+.req .grid b{color:var(--txt);font-weight:650}
+.req .note{font-size:12.5px;color:var(--mut);margin-top:10px;font-style:italic}
+.status{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:4px 10px;border-radius:20px;height:fit-content}
+.status.pending{background:rgba(251,191,36,.16);color:#fcd34d}
+.status.allocated{background:rgba(52,211,153,.16);color:#6ee7b7}
+.status.rejected{background:rgba(251,113,133,.16);color:#fda4af}
+.alloc{margin-top:16px;border-top:1px dashed var(--line);padding-top:14px}
+.alloc .opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:10px 0}
+.ar{border:1px solid var(--line);border-radius:11px;padding:11px 13px;cursor:pointer;transition:.12s;position:relative}
+.ar:hover{border-color:#3a4a86}
+.ar.sel{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand),0 8px 20px rgba(99,102,241,.25);background:rgba(99,102,241,.08)}
+.ar.busy{opacity:.45;pointer-events:none}
+.ar b{font-size:13.5px}.ar .m{font-size:11.5px;color:var(--mut);margin-top:3px}
+.ar .pref{position:absolute;top:9px;right:9px;font-size:9.5px;font-weight:800;color:#fcd34d}
+.ar .fit{font-size:11px;font-weight:700;margin-top:6px}
+.ar .fit.ok{color:#6ee7b7}.ar .fit.no{color:#fda4af}
 
 .empty{color:var(--mut2);font-size:13px;text-align:center;padding:40px}
 .banner-note{font-size:11.5px;color:var(--mut2);margin-top:30px;border-top:1px solid var(--line);padding-top:16px;line-height:1.6}

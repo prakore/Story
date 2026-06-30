@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Convene — Client Conference Room Booking</title>
+<title>Convene — Conference Room Booking</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;650;700;750;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css"/>
@@ -14,30 +14,32 @@
   <aside class="side">
     <div class="brand">
       <div class="logo">C</div>
-      <div><b>Convene</b><span>Client Booking Suite</span></div>
+      <div><b>Convene</b><span>Room Booking Suite</span></div>
     </div>
     <nav class="nav" id="nav">
       <div class="lbl">Workspace</div>
-      <button data-screen="dashboard" class="on"><span class="ic">📊</span> Dashboard</button>
-      <button data-screen="finder"><span class="ic">✨</span> AI Room Finder</button>
-      <button data-screen="rooms"><span class="ic">🏢</span> Rooms</button>
+      <button data-screen="dashboard" data-roles="planner" class="on"><span class="ic">📊</span> Dashboard</button>
+      <button data-screen="finder" data-roles="planner employee"><span class="ic">✨</span> <span id="lbl-finder">AI Room Finder</span></button>
+      <button data-screen="rooms" data-roles="planner employee"><span class="ic">🏢</span> Rooms</button>
       <div class="lbl">Planning</div>
-      <button data-screen="planner"><span class="ic">🗓️</span> Planner Board</button>
-      <button data-screen="recs"><span class="ic">🤖</span> Recommendations</button>
+      <button data-screen="planner" data-roles="planner"><span class="ic">🗓️</span> Planner Board</button>
+      <button data-screen="requests" data-roles="planner employee"><span class="ic">📥</span> <span id="lbl-requests">Requests</span> <span class="pill" id="req-count"></span></button>
+      <button data-screen="recs" data-roles="planner"><span class="ic">🤖</span> Recommendations</button>
     </nav>
-    <div class="me">
-      <div class="avatar">AM</div>
-      <div style="font-size:12.5px"><b>Ava Mendel</b><div style="color:var(--mut2);font-size:11px">Workplace Lead</div></div>
-    </div>
+    <button class="me" id="role-switch" title="Switch role">
+      <div class="avatar" id="me-av">AM</div>
+      <div style="font-size:12.5px;text-align:left"><b id="me-name">Ava Mendel</b><div style="color:var(--mut2);font-size:11px" id="me-role">Workplace Lead</div></div>
+      <span class="swap">⇄</span>
+    </button>
   </aside>
 
   <!-- ============ MAIN ============ -->
   <main class="main">
-    <!-- DASHBOARD -->
+    <!-- DASHBOARD (planner) -->
     <section class="screen on" id="screen-dashboard">
       <div class="top">
-        <div><h1>Good morning, Ava 👋</h1><p>Tuesday, 30 June 2026 · 9 client bookings today across HQ Tower & Annex. Two need your attention.</p></div>
-        <button class="btn primary" data-goto="finder">✨ Find a room with AI</button>
+        <div><h1>Good morning, Ava 👋</h1><p>Tuesday, 30 June 2026 · 9 bookings today and <b id="dash-pending">2</b> employee requests waiting on allocation.</p></div>
+        <button class="btn primary" data-goto="requests">📥 Review requests</button>
       </div>
       <div class="cards stats" id="dash-stats"></div>
       <div class="section-h"><h2>⚠️ Needs your attention</h2><span class="lnk" data-goto="recs">View all recommendations →</span></div>
@@ -48,17 +50,17 @@
 
     <!-- AI ROOM FINDER -->
     <section class="screen" id="screen-finder">
-      <div class="top"><div><h1>✨ AI Room Finder</h1><p>Describe the meeting. The recommender ranks every space on capacity fit, AV, catering readiness, location and client tier — then explains each match.</p></div></div>
+      <div class="top"><div><h1>✨ AI Room Finder</h1><p>Describe the meeting. The recommender ranks spaces on capacity fit, AV, catering readiness, availability and audience — then explains each match. How you book depends on the centre’s policy.</p></div></div>
       <div class="cards finder">
         <div class="card form">
-          <div class="fg"><label>Client / meeting name</label><input id="f-name" value="Acme Corp — Contract signing"/></div>
+          <div class="fg"><label>Meeting / client name</label><input id="f-name" value="Acme Corp — Contract signing"/></div>
           <div class="row2">
             <div class="fg"><label>Attendees</label><input id="f-pax" type="number" value="12" min="1"/></div>
-            <div class="fg"><label>Client tier</label><select id="f-tier"><option>Tier-1 (VIP)</option><option selected>Tier-2</option><option>Internal</option></select></div>
+            <div class="fg"><label>Audience</label><select id="f-aud"><option>Internal meeting</option><option selected>External client</option></select></div>
           </div>
           <div class="row2">
             <div class="fg"><label>Date</label><input id="f-date" type="date" value="2026-06-30"/></div>
-            <div class="fg"><label>Building</label><select id="f-bldg"><option selected>Any</option><option>HQ Tower</option><option>Annex</option></select></div>
+            <div class="fg"><label>Conference centre</label><select id="f-bldg"><option selected>Any</option><option>HQ Tower</option><option>Annex</option><option>Executive Client Centre</option></select></div>
           </div>
           <div class="row2">
             <div class="fg"><label>Start time</label><input id="f-start" type="time" value="14:00"/></div>
@@ -86,24 +88,25 @@
 
     <!-- ROOMS -->
     <section class="screen" id="screen-rooms">
-      <div class="top"><div><h1>Rooms</h1><p>8 client-ready spaces synced live from facilities (IWMS) and Microsoft 365 calendars.</p></div>
+      <div class="top"><div><h1>Rooms</h1><p>10 spaces across 3 conference centres, synced from facilities (IWMS) + Microsoft 365. The action on each room reflects its centre’s booking policy.</p></div>
         <button class="btn primary" data-goto="finder">✨ Find a room with AI</button></div>
+      <div id="centers-legend" class="legend-row"></div>
       <div class="cards rooms" id="rooms-all"></div>
-      <p class="banner-note"><b>Where this data comes from:</b> space & floor attributes are hydrated from the IWMS / facilities system; live availability from Microsoft 365 / Google Workspace two-way calendar sync; the catering menu from the caterer's product feed; ancillary services from AV / IT / cleaning ticketing. In this prototype it's mocked in <code>data.js</code>.</p>
+      <p class="banner-note"><b>Where this data comes from:</b> space &amp; floor attributes from the IWMS / facilities system; live availability from Microsoft 365 / Google Workspace; the catering menu from the caterer’s feed; ancillary services from AV / IT / cleaning ticketing. Mocked here in <code>data.js</code>.</p>
     </section>
 
     <!-- PLANNER -->
     <section class="screen" id="screen-planner">
-      <div class="top"><div><h1>🗓️ Planner Board</h1><p>Today's client bookings across all rooms. Click any block to open the booking, its catering and services. Click an empty slot to draft a new booking.</p></div>
+      <div class="top"><div><h1>🗓️ Planner Board</h1><p>Today’s bookings across all rooms. Click a block to open it; click an empty slot to book directly. Allocated requests land here automatically.</p></div>
         <div style="display:flex;gap:10px"><button class="btn ghost sm" id="reset-demo">↺ Reset demo</button><button class="btn primary" data-goto="finder">+ New booking</button></div></div>
       <div class="cards stats" id="planner-stats" style="margin-bottom:18px"></div>
       <div class="planner-wrap">
         <div class="planner-bar">
-          <div style="display:flex;gap:10px;align-items:center"><b style="font-size:14px">HQ Tower &amp; Annex</b><span class="muted" style="font-size:12px">· 30 Jun 2026 · 08:00–20:00</span></div>
+          <div style="display:flex;gap:10px;align-items:center"><b style="font-size:14px">All centres</b><span class="muted" style="font-size:12px">· 30 Jun 2026 · 08:00–20:00</span></div>
           <div class="legend">
             <span><i style="background:linear-gradient(135deg,#34d399,#22d3ee)"></i>Confirmed</span>
             <span><i style="background:linear-gradient(135deg,#fbbf24,#f59e0b)"></i>Tentative</span>
-            <span><i style="background:linear-gradient(135deg,#a855f7,#ec4899)"></i>New / draft</span>
+            <span><i style="background:linear-gradient(135deg,#a855f7,#ec4899)"></i>New / allocated</span>
           </div>
         </div>
         <div class="grid-scroll">
@@ -113,13 +116,19 @@
           </div>
         </div>
       </div>
-      <div class="section-h"><h2>Planner workload</h2></div>
-      <div class="cards" style="grid-template-columns:repeat(3,1fr)" id="planner-load"></div>
+    </section>
+
+    <!-- REQUESTS -->
+    <section class="screen" id="screen-requests">
+      <div class="top"><div><h1 id="req-title">📥 Room Requests</h1><p id="req-sub">Employee requests awaiting allocation. Review the requirements, then allocate a room — preferred rooms are honoured where free.</p></div>
+        <button class="btn primary" id="req-new-btn" data-goto="finder" style="display:none">✨ Request a room</button></div>
+      <div class="cards stats" id="requests-stats" style="margin-bottom:6px"></div>
+      <div id="requests-list" style="display:flex;flex-direction:column;gap:14px;margin-top:8px"></div>
     </section>
 
     <!-- RECOMMENDATIONS -->
     <section class="screen" id="screen-recs">
-      <div class="top"><div><h1>🤖 AI Recommendations</h1><p>Proactive planner intelligence — utilisation, catering lead-time risk, client-experience upsell and sustainability, each with a confidence score and a one-click action.</p></div>
+      <div class="top"><div><h1>🤖 AI Recommendations</h1><p>Proactive planner intelligence — utilisation, catering lead-time risk, aged requests and optimisation, each with a confidence score and a one-click action.</p></div>
         <button class="btn" id="recs-refresh">↻ Re-scan</button></div>
       <div class="cards stats" id="recs-stats" style="margin-bottom:6px"></div>
       <div class="section-h"><h2>Suggested actions</h2></div>
@@ -128,7 +137,7 @@
   </main>
 </div>
 
-<!-- ====== DRAWER (room booking + booking detail) ====== -->
+<!-- ====== DRAWER (book / request composer + booking detail) ====== -->
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer">
   <div class="dh"><button class="x" id="drawer-x">✕</button><div id="drawer-head"></div></div>
