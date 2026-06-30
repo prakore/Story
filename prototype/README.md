@@ -53,6 +53,19 @@ Software, OfficeSpace, MazeMap) integrate internal systems:
 In this prototype everything is mocked in `data.js` so the flows are fully
 interactive offline.
 
+## Refinements (v1.1)
+
+- **Realistic, spread scores** — replaced saturated "everything's 99%" with a
+  weighted model that produces a believable range (e.g. 80% → 9%).
+- **Time-aware availability** — the finder takes a start time + duration and
+  marks rooms **● Available / ● Busy at that time**, naming the clashing booking.
+- **Conflict-blocking** — the booking drawer checks for overlaps live, shows a
+  warning, and disables *Confirm* until the time is free (also enforces 08:00–20:00).
+- **Click-to-time on the planner** — click an empty slot and the start time is
+  inferred from where you clicked.
+- **Persistence** — bookings & dismissed insights survive a page reload via
+  `localStorage`; *Reset demo* on the Planner Board restores the seed data.
+
 ## Best-in-class systems referenced
 
 - **Commercial:** YAROOMS (Open API + services-at-booking), Condeco & MRI

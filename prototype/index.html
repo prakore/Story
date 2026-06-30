@@ -60,6 +60,10 @@
             <div class="fg"><label>Date</label><input id="f-date" type="date" value="2026-06-30"/></div>
             <div class="fg"><label>Building</label><select id="f-bldg"><option selected>Any</option><option>HQ Tower</option><option>Annex</option></select></div>
           </div>
+          <div class="row2">
+            <div class="fg"><label>Start time</label><input id="f-start" type="time" value="14:00"/></div>
+            <div class="fg"><label>Duration (hrs)</label><input id="f-dur" type="number" value="2" step="0.5" min="0.5"/></div>
+          </div>
           <div class="fg"><label>Must-have features</label>
             <div class="toggles" id="f-feat">
               <span class="tg on" data-f="VC suite">Video conf</span>
@@ -91,7 +95,7 @@
     <!-- PLANNER -->
     <section class="screen" id="screen-planner">
       <div class="top"><div><h1>🗓️ Planner Board</h1><p>Today's client bookings across all rooms. Click any block to open the booking, its catering and services. Click an empty slot to draft a new booking.</p></div>
-        <button class="btn primary" data-goto="finder">+ New booking</button></div>
+        <div style="display:flex;gap:10px"><button class="btn ghost sm" id="reset-demo">↺ Reset demo</button><button class="btn primary" data-goto="finder">+ New booking</button></div></div>
       <div class="cards stats" id="planner-stats" style="margin-bottom:18px"></div>
       <div class="planner-wrap">
         <div class="planner-bar">
