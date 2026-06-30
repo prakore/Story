@@ -59,6 +59,15 @@ function applyRole(){
 function renderReqCount(){ const n=DATA.requests.filter(r=>r.status==='pending').length; const el=$('#req-count'); el.textContent=(currentRole==='planner'&&n)?n:''; el.style.display=el.textContent?'':'none'; }
 $('#role-switch').onclick=()=>{ currentRole=currentRole==='planner'?'employee':'planner'; applyRole(); if(currentRole==='planner'){renderDashboard();renderPlanner();renderCatering();renderRecs();} toast(`Now viewing as ${me().name} (${currentRole})`); };
 
+/* theme */
+const THEME_KEY='convene.theme';
+function applyTheme(name){
+  document.body.className='theme-'+name;
+  $$('#theme-switch button').forEach(b=>b.classList.toggle('on',b.dataset.theme===name));
+  try{ localStorage.setItem(THEME_KEY,name); }catch(e){}
+}
+$('#theme-switch').addEventListener('click',e=>{const b=e.target.closest('[data-theme]');if(b)applyTheme(b.dataset.theme);});
+
 /* toast */
 let toastT; function toast(m,ok=true){const t=$('#toast');t.className='toast on'+(ok?'':' bad');t.innerHTML=(ok?'✓ ':'✕ ')+m;clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),3000);}
 
@@ -158,7 +167,7 @@ function stepDetails(){
       </div>
       <label class="check"><input type="checkbox" id="wz-extras" ${wz.wantExtras?'checked':''}> I need <b>services &amp; catering</b> for this booking</label>
     </div>
-    <div class="card" style="background:linear-gradient(180deg,rgba(99,102,241,.12),var(--bg2))">
+    <div class="card" style="border-left:3px solid var(--brand)">
       <div style="font-size:12px;color:var(--mut);font-weight:650">Your centre (auto-filled)</div>
       <div style="font-size:17px;font-weight:750;margin:6px 0 2px">${DATA.user.center}</div>
       <div class="muted" style="font-size:11.5px">From your profile in the space management system.</div>
@@ -186,11 +195,10 @@ function spaceCard(sp,o={}){
   const tags=sp.amenities.slice(0,4).map(a=>`<span class="chip ${a==='Catering-ready'?'g':/view|4K/i.test(a)?'b':''}">${a}</span>`).join('');
   const buf=(sp.setupMins||sp.teardownMins)?`<span class="chip">⏱ setup ${sp.setupMins}m / teardown ${sp.teardownMins}m</span>`:'<span class="chip">⏱ no buffer</span>';
   return `<div class="card room ${busy?'busy':''} ${o.sel?'picked':''}" data-pickspace="${sp.id}">
-    <div class="ph" style="background:linear-gradient(135deg,#3b3f7a,#22d3ee)"><div class="badge">⭐ ${sp.rating}</div>
-      ${o.score!=null?`<div class="score" style="box-shadow:0 0 0 2px ${o.score>=72?'var(--ok)':o.score>=52?'var(--warn)':'var(--bad)'}">${o.score}%</div>`:''}
-      <div class="avail ${busy?'no':'ok'}">${busy?'● Busy at that time':'● Available'}</div></div>
+    <div class="ph"><span class="ph-mono">${sp.type.charAt(0)}</span><span class="ph-t">${sp.type}</span>
+      ${o.score!=null?`<span class="score">${o.score}% fit</span>`:''}</div>
     <div class="bd"><h3>${sp.name} <span class="muted" style="font-size:12px;font-weight:600">${money(sp.rate)}/hr</span></h3>
-      <div class="meta">${sp.type} · Floor ${sp.floor} · 👥 ${sp.capacity} · <span class="muted">${sp.externalId}</span></div>
+      <div class="meta">Floor ${sp.floor} · 👥 ${sp.capacity} · ⭐ ${sp.rating} · ${sp.externalId} · <span class="avail-inline ${busy?'no':'ok'}">${busy?'Busy':'Available'}</span></div>
       <div class="chips">${tags}${buf}</div>
       ${o.why?`<div class="why"><b>Why:</b> ${o.why.filter(w=>w[0]==='pos').slice(0,3).map(w=>w[1]).join(' · ')||'—'}</div>`:''}
     </div></div>`;
@@ -472,6 +480,7 @@ document.addEventListener('click',e=>{
 
 /* init */
 load();
+applyTheme((()=>{try{return localStorage.getItem(THEME_KEY)||'corporate';}catch(e){return 'corporate';}})());
 wz=freshWizard();
 applyRole();
 renderWizard(); renderRequests(); renderReqCount();

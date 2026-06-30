@@ -1,5 +1,12 @@
 # Convene — Conference Room Booking (clickable prototype)
 
+**Professional UI with three themes** — switch live via the **Theme** swatches at the
+bottom-left of the sidebar:
+- **Corporate** — light, white surfaces, standard enterprise blue *(default)*
+- **Slate** — light neutral with a calm indigo accent
+- **Graphite** — a restrained professional dark (not neon)
+
+
 A self-contained, **clickable HTML/CSS/JS prototype** — no build, no deps. Open
 `index.html` in any browser. Switch between **Employee** and **Planner** with the
 identity chip at the bottom-left.

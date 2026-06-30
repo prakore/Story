@@ -22,6 +22,12 @@
       <button data-screen="catering" data-roles="planner"><span class="ic">🍽️</span> Catering Setup</button>
       <button data-screen="recs" data-roles="planner"><span class="ic">🤖</span> Recommendations</button>
     </nav>
+    <div class="theme-switch" id="theme-switch">
+      <span class="tl">Theme</span>
+      <button data-theme="corporate" title="Corporate (light)"></button>
+      <button data-theme="slate" title="Slate (light)"></button>
+      <button data-theme="graphite" title="Graphite (dark)"></button>
+    </div>
     <button class="me" id="role-switch" title="Switch role">
       <div class="avatar" id="me-av">JL</div>
       <div style="font-size:12.5px;text-align:left"><b id="me-name">Jordan Lee</b><div style="color:var(--mut2);font-size:11px" id="me-role">Employee</div></div>
@@ -67,10 +73,10 @@
         <div class="planner-bar">
           <div style="display:flex;gap:10px;align-items:center"><b style="font-size:14px" id="pl-name">—</b></div>
           <div class="legend">
-            <span><i style="background:linear-gradient(135deg,#34d399,#22d3ee)"></i>Confirmed</span>
-            <span><i style="background:linear-gradient(135deg,#fbbf24,#f59e0b)"></i>Tentative</span>
-            <span><i style="background:linear-gradient(135deg,#a855f7,#ec4899)"></i>New / allocated</span>
-            <span><i style="background:repeating-linear-gradient(45deg,#3a4a86,#3a4a86 3px,transparent 3px,transparent 6px)"></i>Setup / teardown</span>
+            <span><i class="sw confirmed"></i>Confirmed</span>
+            <span><i class="sw tentative"></i>Tentative</span>
+            <span><i class="sw new"></i>New / allocated</span>
+            <span><i class="sw buffer"></i>Setup / teardown</span>
           </div>
         </div>
         <div class="grid-scroll"><div class="tl">
