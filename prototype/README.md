@@ -123,8 +123,6 @@ prototype is designed to fix them:
 
 ## Where real data would come from
 
-## Where real data would come from
-
 | Data | Source system |
 |------|---------------|
 | Buildings / floors / spaces / common names / amenities / setup-teardown | **Space Management System** |
