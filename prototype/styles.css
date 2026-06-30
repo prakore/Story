@@ -287,3 +287,32 @@ label,.fg label,.form label{display:block;font-size:12px;font-weight:600;color:v
 code{background:var(--surface-2);padding:1px 5px;border-radius:4px;font-size:12px}
 
 @media(max-width:1080px){.app{grid-template-columns:1fr}.side{position:static;height:auto}.stats{grid-template-columns:1fr 1fr}.rooms,.insights{grid-template-columns:1fr}}
+
+/* ===== v5: book modes, calendar grid, admin hub ===== */
+.seg{display:inline-flex;gap:3px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:3px;margin-bottom:18px}
+.seg button{font-size:12.5px;font-weight:600;color:var(--mut);padding:7px 14px;border-radius:7px}
+.seg button.on{background:var(--surface);color:var(--brand);box-shadow:var(--sh)}
+
+/* calendar / grid view */
+.gcal{display:grid;min-width:880px;align-items:stretch}
+.gcal .ghead{font-weight:700;font-size:12px;color:var(--txt)}
+.gcal .gname{padding:9px 11px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:12.5px;background:var(--surface)}
+.gcal .gname b{font-weight:650}.gcal .gname span{display:block;color:var(--mut2);font-size:10.5px;margin-top:2px}
+.gcal .gh{font-size:10.5px;color:var(--mut2);padding:9px 0;text-align:center;border-bottom:1px solid var(--line);border-right:1px solid var(--line);background:var(--surface-2);font-weight:600}
+.gcell{border-bottom:1px solid var(--line);border-right:1px solid var(--line);min-height:40px;transition:.1s}
+.gcell.free{cursor:pointer;background:var(--ok-tint)}
+.gcell.free:hover{background:var(--ok);opacity:.6}
+.gcell.free.tight{background:var(--warn-tint)}
+.gcell.busy{background:repeating-linear-gradient(45deg,var(--surface-2),var(--surface-2) 4px,var(--line) 4px,var(--line) 5px)}
+
+/* admin master-detail hub */
+.hub{display:grid;grid-template-columns:280px 1fr;gap:18px;align-items:start}
+.hub-master{padding:12px;position:sticky;top:18px;max-height:calc(100vh - 60px);display:flex;flex-direction:column}
+.hub-master #ct-search{width:100%;margin-bottom:10px}
+.hub-list{overflow-y:auto;display:flex;flex-direction:column;gap:3px}
+.hub-item{text-align:left;padding:9px 11px;border-radius:var(--r2);border:1px solid transparent}
+.hub-item:hover{background:var(--surface-2)}
+.hub-item.on{background:var(--brand-tint);border-color:var(--brand)}
+.hub-item b{font-size:13px;display:block;color:var(--txt)}
+.hub-item span{font-size:11px;color:var(--mut2)}
+.hub-item.on b{color:var(--brand)}

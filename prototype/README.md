@@ -30,6 +30,17 @@ The estate is **generated** so the prototype has realistic scale:
   **amenities**, and **setup / teardown** minutes — all notionally sourced from the
   **Space Management System** (mocked in `data.js`).
 
+## Three ways to book (switch via the segmented control)
+
+- **Guided wizard** — one decision per step; best for occasional users.
+- **Express** — building search + live room grid + extras + totals on a single
+  screen; fastest for power users.
+- **Grid / calendar** — a rooms×hours availability grid for a building; click a
+  free (green) slot to book. Busy/buffer cells are hatched, tight-capacity rooms
+  amber. Clicking a slot drops you into the wizard's review (or services) step.
+
+All three drive the same state and confirm logic.
+
 ## Book a Space — step-by-step wizard
 
 1. **Details** — building (defaults to your **favourite ★**, or search 120
@@ -48,7 +59,7 @@ The estate is **generated** so the prototype has realistic scale:
 
 ## Catering — per building, multi-choice, with cutoffs
 
-Set up under **Catering Setup** (planner). Each building references a template
+Set up under **Catering Setup** (planner) — a **master–detail admin hub**: searchable building list on the left, the selected building's full catering config on the right. Each building references a template
 (Standard / Premium / Lite) and can be **overridden per building**. Items:
 
 - **Multi-choice buffets & lunch orders** — the orderer picks N per group

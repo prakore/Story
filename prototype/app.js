@@ -57,7 +57,7 @@ function applyRole(){
   renderRequests(); renderReqCount();
 }
 function renderReqCount(){ const n=DATA.requests.filter(r=>r.status==='pending').length; const el=$('#req-count'); el.textContent=(currentRole==='planner'&&n)?n:''; el.style.display=el.textContent?'':'none'; }
-$('#role-switch').onclick=()=>{ currentRole=currentRole==='planner'?'employee':'planner'; applyRole(); if(currentRole==='planner'){renderDashboard();renderPlanner();renderCatering();renderRecs();} toast(`Now viewing as ${me().name} (${currentRole})`); };
+$('#role-switch').onclick=()=>{ currentRole=currentRole==='planner'?'employee':'planner'; applyRole(); if(currentRole==='planner'){renderDashboard();renderPlanner();renderAdminHub();renderRecs();} toast(`Now viewing as ${me().name} (${currentRole})`); };
 
 /* theme */
 const THEME_KEY='convene.theme';
@@ -126,6 +126,91 @@ function seq(){ return ['details', ...(wz.buildingId?['rooms']:[]), ...(wz.wantE
 function gotoStep(name){ const s=seq(); wz.step=Math.max(0,s.indexOf(name)); renderWizard(); }
 function stepNext(){ const s=seq(); if(wz.step<s.length-1){wz.step++;renderWizard();} }
 function stepBack(){ if(wz.step>0){wz.step--;renderWizard();} }
+
+/* --- booking mode controller (3 ways to book) --- */
+let bookMode='wizard', gridDur=1;
+const MODES=[['wizard','Guided wizard'],['express','Express'],['grid','Grid / calendar']];
+function renderBook(){
+  const seg=$('#book-modes'); if(seg) seg.innerHTML=MODES.map(([k,l])=>`<button class="${k===bookMode?'on':''}" data-bmode="${k}">${l}</button>`).join('');
+  $('#wz-steps').style.display = bookMode==='wizard'?'':'none';
+  if(bookMode==='wizard') renderWizard();
+  else if(bookMode==='express') renderExpress();
+  else renderGrid();
+}
+function bsearchHTML(){ // shared building search field
+  const b=wz.buildingId?building(wz.buildingId):null; const q=wz.buildingQuery.toLowerCase();
+  const matches=q?DATA.buildings.filter(x=>x.label.toLowerCase().includes(q)).slice(0,8):[]; const fav=DATA.user.favoriteBuildingId;
+  return `<div class="fg"><label>Building <span class="muted">(blank = request a room)</span></label>
+    <div style="position:relative"><input id="wz-bq" placeholder="Search 120 buildings…" value="${b?b.label.replace(/"/g,'&quot;'):wz.buildingQuery.replace(/"/g,'&quot;')}" style="width:100%">
+    ${matches.length?`<div class="dropdown">${matches.map(x=>`<div class="dd" data-pickb="${x.id}"><b>${x.name}</b><span>${x.city} · ${x.region}${x.id===fav?' · ★':''}</span></div>`).join('')}</div>`:''}</div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      ${b?`<button class="btn sm ${fav===b.id?'':'ghost'}" id="wz-fav">${fav===b.id?'★ Favourite':'☆ Set favourite'}</button><button class="btn sm ghost" id="wz-clearb">✕ Clear</button>`:(fav?`<button class="btn sm ghost" id="wz-usefav">★ Use favourite</button>`:'')}
+    </div></div>`;
+}
+function detailFieldsHTML(){
+  return `<div class="row2">
+      <div class="fg"><label>Attendees</label><input id="wz-pax" type="number" min="1" value="${wz.pax}" style="width:100%"></div>
+      <div class="fg"><label>Date</label><input id="wz-date" type="date" value="${wz.date}" style="width:100%"></div></div>
+    <div class="row2">
+      <div class="fg"><label>Start</label><input id="wz-start" type="time" value="${fmtHr(wz.start)}" style="width:100%"></div>
+      <div class="fg"><label>End</label><input id="wz-end" type="time" value="${fmtHr(wz.end)}" style="width:100%"></div></div>
+    <div class="row2">
+      <div class="fg"><label>Setup type</label><select id="wz-setup" style="width:100%">${DATA.setupTypes.map(x=>`<option ${x===wz.setup?'selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="fg"><label>Event type</label><select id="wz-event" style="width:100%">${DATA.eventTypes.map(x=>`<option ${x===wz.eventType?'selected':''}>${x}</option>`).join('')}</select></div></div>`;
+}
+function extrasInlineHTML(){
+  const menu=menuFor(wz.buildingId);
+  return `<div class="card" style="margin-top:14px"><div class="section-h" style="margin-top:0"><h2 style="font-size:14px">🛎️ Services</h2></div>
+    ${DATA.services.map(s=>{const on=wz.services.has(s.id);return `<div class="opt"><div><div class="nm">${s.icon} ${s.name}</div><div class="sub">${money(s.price)} · ${fmtSla(s.confirmSla)}</div></div><button class="add ${on?'on':''}" data-svc="${s.id}">${on?'✓':'+'}</button></div>`;}).join('')}
+    <div class="section-h"><h2 style="font-size:14px">🍽️ Catering</h2></div>${menu.map(it=>cateringItemHTML(it,wz.buildingId)).join('')}</div>`;
+}
+
+/* --- EXPRESS: everything on one screen --- */
+function renderExpress(){
+  const b=wz.buildingId?building(wz.buildingId):null; const isReq=!b;
+  const ranked=b?rankSpaces(DATA.spaces.filter(s=>s.buildingId===b.id),{date:wz.date,start:wz.start,end:wz.end,pax:wz.pax,amenities:[],eventType:wz.eventType}):[];
+  const t=totals();
+  $('#wz-body').innerHTML=`<div class="cards" style="grid-template-columns:330px 1fr;gap:18px;align-items:start">
+    <div class="card" style="position:sticky;top:18px">
+      ${bsearchHTML()}
+      <div class="fg"><label>Meeting / client name</label><input id="wz-name" value="${(wz.name||'').replace(/"/g,'&quot;')}" placeholder="e.g. Acme — Contract signing" style="width:100%"></div>
+      ${detailFieldsHTML()}
+      <label class="check"><input type="checkbox" id="wz-extras" ${wz.wantExtras?'checked':''}> Add services &amp; catering</label>
+      <hr style="margin:14px 0">
+      <div class="kv"><span>Room ${b&&wz.spaceId?`· ${(wz.end-wz.start)}h`:''}</span><b>${wz.spaceId?money(space(wz.spaceId).rate*(wz.end-wz.start)):(isReq?'at allocation':'—')}</b></div>
+      <div class="kv"><span>Catering · ${wz.pax} pax</span><b>${money(t.cat)}</b></div>
+      <div class="kv"><span>Services</span><b>${money(t.svc)}</b></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 4px"><span class="muted" style="font-size:11px">Total</span><span class="total">${money(t.total)}</span></div>
+      <button class="btn primary" id="wz-confirm" style="width:100%" ${(b&&!wz.spaceId)?'disabled style="opacity:.5;width:100%"':''}>${isReq?'Request a room 📥':(wz.spaceId?'Confirm booking ✓':'Select a room →')}</button>
+      <div class="muted" style="font-size:11px;margin-top:6px">Your centre: <b>${DATA.user.center}</b> (auto-filled)</div>
+    </div>
+    <div>
+      ${b?`<div class="ai-banner"><div class="dot">🏢</div><div><b>${b.name} — ${ranked.length} rooms</b><p>${ranked.filter(r=>r.free).length} free for ${fmtHr(wz.start)}–${fmtHr(wz.end)} · click to select.</p></div></div>
+        <div class="cards rooms" style="grid-template-columns:repeat(2,1fr)">${ranked.map(r=>spaceCard(r.sp,{score:r.score,free:r.free,why:r.why,sel:wz.spaceId===r.sp.id})).join('')}</div>`
+       :`<div class="ai-banner"><div class="dot">📥</div><div><b>No building chosen</b><p>You’ll submit a request; a planner allocates a room in ${DATA.user.center}.</p></div></div>`}
+      ${wz.wantExtras?extrasInlineHTML():''}
+    </div></div>`;
+}
+
+/* --- GRID / CALENDAR: pick a free slot --- */
+function renderGrid(){
+  if(!wz.buildingId) wz.buildingId=DATA.user.favoriteBuildingId||'bld-001';
+  const b=building(wz.buildingId); const spaces=DATA.spaces.filter(s=>s.buildingId===b.id);
+  const hrs=[]; for(let h=H0;h<H1;h++) hrs.push(h);
+  const occ=(sp,h)=>DATA.bookings.find(x=>x.spaceId===sp.id&&(x.date||TODAY)===wz.date&&x.start<h+1&&h<x.end);
+  $('#wz-body').innerHTML=`<div class="card" style="margin-bottom:14px;display:flex;gap:16px;flex-wrap:wrap;align-items:end">
+      <div class="fg" style="margin:0"><label>Building</label><select id="grid-building" style="min-width:240px">${buildingOptions(b.id)}</select></div>
+      <div class="fg" style="margin:0"><label>Date</label><input id="grid-date" type="date" value="${wz.date}"></div>
+      <div class="fg" style="margin:0"><label>Attendees</label><input id="grid-pax" type="number" min="1" value="${wz.pax}" style="width:90px"></div>
+      <div class="fg" style="margin:0"><label>Duration (h)</label><input id="grid-dur" type="number" step="0.5" min="0.5" value="${gridDur}" style="width:90px"></div>
+      <label class="check" style="margin:0"><input type="checkbox" id="grid-extras" ${wz.wantExtras?'checked':''}> services &amp; catering</label>
+      <span class="muted" style="font-size:12px;margin-left:auto">Click a green slot to book ${gridDur}h.</span>
+    </div>
+    <div class="planner-wrap"><div class="grid-scroll"><div class="gcal" style="grid-template-columns:160px repeat(${hrs.length},minmax(56px,1fr))">
+      <div class="gname ghead">Room</div>${hrs.map(h=>`<div class="gh">${String(h).padStart(2,'0')}</div>`).join('')}
+      ${spaces.map(sp=>`<div class="gname"><b>${sp.name}</b><span>${sp.type} · 👥${sp.capacity}</span></div>${hrs.map(h=>{const o=occ(sp,h);if(o)return `<div class="gcell busy" title="${o.title}"></div>`;const small=sp.capacity<wz.pax;return `<div class="gcell free ${small?'tight':''}" data-gridcell="${sp.id}|${h}" title="${sp.name} ${h}:00${small?' · tight capacity':''}"></div>`;}).join('')}`).join('')}
+    </div></div></div>`;
+}
 
 function renderWizard(){
   const s=seq(); const cur=s[Math.min(wz.step,s.length-1)];
@@ -288,22 +373,33 @@ $('#wz-body').addEventListener('input',e=>{
   else if(id==='wz-event') wz.eventType=e.target.value;
   else if(id==='wz-name'){ wz.name=e.target.value; return; }
 });
-function renderDetailsDropdown(){ // light refresh of just the dropdown on each keystroke
-  if(seq()[wz.step]==='details') stepDetails(), $('#wz-bq')?.focus();
-}
-$('#wz-body').addEventListener('change',e=>{ if(e.target.id==='wz-extras'){ wz.wantExtras=e.target.checked; } });
+function renderDetailsDropdown(){ renderBook(); const el=$('#wz-bq'); if(el){ el.focus(); try{el.setSelectionRange(el.value.length,el.value.length);}catch(e){} } }
+$('#wz-body').addEventListener('change',e=>{
+  const id=e.target.id;
+  if(id==='wz-extras'){ wz.wantExtras=e.target.checked; renderBook(); return; }
+  if(id==='grid-building'){ wz.buildingId=e.target.value; wz.spaceId=null; renderBook(); return; }
+  if(id==='grid-date'){ wz.date=e.target.value; renderBook(); return; }
+  if(id==='grid-pax'){ wz.pax=+e.target.value||1; renderBook(); return; }
+  if(id==='grid-dur'){ gridDur=+e.target.value||1; renderBook(); return; }
+  if(id==='grid-extras'){ wz.wantExtras=e.target.checked; renderBook(); return; }
+  if(bookMode==='express' && /^wz-(pax|date|start|end|setup|event)$/.test(id)) renderBook();
+});
 $('#wz-body').addEventListener('click',e=>{
-  const pb=e.target.closest('[data-pickb]'); if(pb){ wz.buildingId=pb.dataset.pickb; wz.buildingQuery=''; stepDetails(); return; }
-  if(e.target.closest('#wz-fav')){ DATA.user.favoriteBuildingId=DATA.user.favoriteBuildingId===wz.buildingId?null:wz.buildingId; save(); stepDetails(); toast(DATA.user.favoriteBuildingId?'Favourite building set ★':'Favourite cleared'); return; }
-  if(e.target.closest('#wz-clearb')){ wz.buildingId=null; wz.spaceId=null; stepDetails(); return; }
-  if(e.target.closest('#wz-usefav')){ wz.buildingId=DATA.user.favoriteBuildingId; stepDetails(); return; }
-  const ps=e.target.closest('[data-pickspace]'); if(ps){ wz.spaceId=ps.dataset.pickspace; stepRooms(); return; }
-  const sv=e.target.closest('[data-svc]'); if(sv){ const id=sv.dataset.svc; wz.services.has(id)?wz.services.delete(id):wz.services.add(id); stepServices(); return; }
+  const pb=e.target.closest('[data-pickb]'); if(pb){ wz.buildingId=pb.dataset.pickb; wz.buildingQuery=''; wz.spaceId=null; renderBook(); return; }
+  if(e.target.closest('#wz-fav')){ DATA.user.favoriteBuildingId=DATA.user.favoriteBuildingId===wz.buildingId?null:wz.buildingId; save(); renderBook(); toast(DATA.user.favoriteBuildingId?'Favourite building set ★':'Favourite cleared'); return; }
+  if(e.target.closest('#wz-clearb')){ wz.buildingId=null; wz.spaceId=null; renderBook(); return; }
+  if(e.target.closest('#wz-usefav')){ wz.buildingId=DATA.user.favoriteBuildingId; renderBook(); return; }
+  const ps=e.target.closest('[data-pickspace]'); if(ps){ wz.spaceId=ps.dataset.pickspace; renderBook(); return; }
+  const gc=e.target.closest('[data-gridcell]'); if(gc){ const [sid,h]=gc.dataset.gridcell.split('|'); const start=+h, end=start+gridDur;
+    if(end>H1){ toast('Booking would run past 20:00',false); return; }
+    if(!spaceFree(sid,wz.date,start,end)){ toast('Not enough free time there (setup/teardown buffer clash)',false); return; }
+    wz.spaceId=sid; wz.start=start; wz.end=end; wz.name=''; bookMode='wizard'; renderBook(); gotoStep(wz.wantExtras?'services':'review'); return; }
+  const sv=e.target.closest('[data-svc]'); if(sv){ const id=sv.dataset.svc; wz.services.has(id)?wz.services.delete(id):wz.services.add(id); renderBook(); return; }
   const ct=e.target.closest('[data-cat]'); if(ct&&!ct.disabled){ toggleCatering(ct.dataset.cat); return; }
   const op=e.target.closest('[data-opt]'); if(op){ const [itemId,gid,enc]=op.dataset.opt.split('|'); toggleOption(itemId,gid,decodeURIComponent(enc)); return; }
   if(e.target.closest('#wz-next')){ if(!validateStep())return; stepNext(); return; }
   if(e.target.closest('#wz-back')){ stepBack(); return; }
-  if(e.target.closest('#wz-confirm')){ confirmWizard(); return; }
+  if(e.target.closest('#wz-confirm')){ confirmBooking(); return; }
 });
 function validateStep(){
   const cur=seq()[wz.step];
@@ -314,17 +410,18 @@ function toggleCatering(itemId){
   const it=catItem(wz.buildingId,itemId); const i=wz.catering.findIndex(c=>c.itemId===itemId);
   if(i>=0) wz.catering.splice(i,1);
   else { if(pastCutoff(it,wz.date,wz.start)){toast('Past the order cutoff for this time',false);return;} wz.catering.push({itemId,choices:{}}); }
-  stepCatering();
+  renderBook();
 }
 function toggleOption(itemId,gid,name){
   const c=chosen(itemId); if(!c)return; const it=catItem(wz.buildingId,itemId); const g=it.choiceGroups.find(x=>x.id===gid);
   const arr=c.choices[gid]||(c.choices[gid]=[]); const idx=arr.indexOf(name);
   if(idx>=0) arr.splice(idx,1);
   else { if(arr.length>=g.pick){ arr.shift(); } arr.push(name); }
-  stepCatering();
+  renderBook();
 }
-function confirmWizard(){
+function confirmBooking(){
   wz.name=($('#wz-name')?.value||wz.name||'Untitled meeting').trim();
+  if(wz.buildingId && !wz.spaceId){ toast('Pick a room first',false); if(bookMode==='wizard') gotoStep('rooms'); return; }
   // validate multi-choice completeness
   for(const c of wz.catering){ const it=catItem(wz.buildingId,c.itemId); for(const g of (it.choiceGroups||[])){ if((c.choices[g.id]||[]).length!==g.pick){ toast(`Complete “${g.label}” for ${it.name} (pick ${g.pick})`,false); gotoStep('catering'); return; } } }
   if(wz.buildingId){
@@ -334,13 +431,13 @@ function confirmWizard(){
       status:'new', catering:wz.catering, services:[...wz.services], date:wz.date, planner:'p1', setup:wz.setup, eventType:wz.eventType });
     save(); toast(`${space(wz.spaceId).name} booked ${fmtHr(wz.start)}–${fmtHr(wz.end)}`);
     if(currentRole==='planner') renderPlanner();
-    wz=freshWizard(); renderWizard(); go(currentRole==='planner'?'planner':'book');
+    wz=freshWizard(); renderBook(); go(currentRole==='planner'?'planner':'book');
   } else {
     DATA.requests.push({ id:'rq'+Date.now(), requester:me().name, meeting:wz.name, eventType:wz.eventType, pax:wz.pax,
       date:wz.date, start:wz.start, end:wz.end, buildingId:null, region:DATA.user.homeRegion, preferredSpaceId:null,
       setup:wz.setup, amenities:[], catering:wz.catering, services:[...wz.services], notes:'Submitted via Book a Space — no building chosen.', status:'pending', allocatedSpaceId:null });
     save(); toast('Request submitted — a planner will allocate a room'); renderRequests(); renderReqCount();
-    wz=freshWizard(); go('requests');
+    wz=freshWizard(); renderBook(); go('requests');
   }
 }
 
@@ -435,25 +532,34 @@ function openBookingDetail(b){
   drawer.classList.add('on'); scrim.classList.add('on');
 }
 
-/* ============================================================ CATERING SETUP ============================================================ */
-function renderCatering(){
-  const sel=$('#ct-building'); if(!sel.options.length){ sel.innerHTML=buildingOptions(DATA.user.favoriteBuildingId||'bld-001'); }
-  const bId=sel.value||'bld-001'; const menu=menuFor(bId); const b=building(bId);
-  $('#catering-list').innerHTML=`<div class="muted" style="font-size:12.5px">${b.name} uses the <b>${DATA.cateringTemplates[b.cateringTemplate].name}</b> template${DATA.cateringOverrides[bId]?' (overridden for this building)':''}. Edit cutoffs, add options, or add items — changes apply to this building only.</div>`+
-    menu.map(it=>{
-      const groups=(it.choiceGroups||[]).map(g=>`<div class="cg"><div class="cg-h">${g.label} <span class="muted">— pick ${g.pick}</span></div><div class="cg-opts">${g.options.map(o=>`<span class="opt-chip on">${o.name}${o.veg?' 🌱':''}</span>`).join('')}<button class="opt-chip add-opt" data-addopt="${bId}|${it.id}|${g.id}">+ option</button></div></div>`).join('');
-      return `<div class="card"><div class="ci-head"><div><div class="nm">${it.name} <span class="cat-type ${it.type}">${it.type}</span></div><div class="sub">${money(it.pricePerHead)}/head</div></div>
-        <div style="display:flex;align-items:center;gap:8px"><label class="muted" style="font-size:11.5px">cutoff (h)</label><input type="number" min="0" value="${it.cutoffHours}" data-cutoff="${bId}|${it.id}" style="width:70px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px;color:#fff"></div></div>
-        ${groups?`<div class="ci-groups" style="margin-top:10px">${groups}</div>`:'<div class="muted" style="font-size:12px;margin-top:8px">Simple item — no choices.</div>'}</div>`;
-    }).join('');
-}
+/* ============================================================ CATERING SETUP — master-detail admin hub ============================================================ */
+let adminBuildingId=null, adminQuery='';
 function ensureOverride(bId){ if(!DATA.cateringOverrides[bId]) DATA.cateringOverrides[bId]=JSON.parse(JSON.stringify(menuFor(bId))); return DATA.cateringOverrides[bId]; }
-$('#ct-building').addEventListener('change',renderCatering);
-$('#catering-list').addEventListener('input',e=>{ const c=e.target.closest('[data-cutoff]'); if(c){ const [bId,itemId]=c.dataset.cutoff.split('|'); const m=ensureOverride(bId); const it=m.find(x=>x.id===itemId); it.cutoffHours=+c.value||0; save(); } });
-$('#catering-list').addEventListener('click',e=>{
-  const ao=e.target.closest('[data-addopt]'); if(ao){ const [bId,itemId,gid]=ao.dataset.addopt.split('|'); const name=prompt('New option name:'); if(!name)return; const m=ensureOverride(bId); const g=m.find(x=>x.id===itemId).choiceGroups.find(x=>x.id===gid); g.options.push({name,veg:/veg|salad|fruit/i.test(name)}); save(); renderCatering(); toast('Option added'); }
+function cateringSetupCard(it,bId){
+  const groups=(it.choiceGroups||[]).map(g=>`<div class="cg"><div class="cg-h">${g.label} <span class="muted">— pick ${g.pick}</span></div><div class="cg-opts">${g.options.map(o=>`<span class="opt-chip on">${o.name}${o.veg?' 🌱':''}</span>`).join('')}<button class="opt-chip add-opt" data-addopt="${bId}|${it.id}|${g.id}">+ option</button></div></div>`).join('');
+  return `<div class="card" style="margin-bottom:12px"><div class="ci-head"><div><div class="nm">${it.name} <span class="cat-type ${it.type}">${it.type}</span></div><div class="sub">${money(it.pricePerHead)}/head</div></div>
+    <div style="display:flex;align-items:center;gap:8px"><label class="muted" style="font-size:11.5px;margin:0">cutoff (h)</label><input type="number" min="0" value="${it.cutoffHours}" data-cutoff="${bId}|${it.id}" style="width:72px"></div></div>
+    ${groups?`<div class="ci-groups" style="margin-top:10px">${groups}</div>`:'<div class="muted" style="font-size:12px;margin-top:8px">Simple item — no choices.</div>'}</div>`;
+}
+function renderAdminHub(){
+  if(!adminBuildingId) adminBuildingId=DATA.user.favoriteBuildingId||'bld-001';
+  const q=adminQuery.toLowerCase();
+  const list=DATA.buildings.filter(b=>!q||b.label.toLowerCase().includes(q)).slice(0,80);
+  $('#ct-list').innerHTML=list.map(b=>{const m=menuFor(b.id);return `<button class="hub-item ${b.id===adminBuildingId?'on':''}" data-adminb="${b.id}"><b>${b.name}</b><span>${b.city} · ${m.length} items${DATA.cateringOverrides[b.id]?' · edited':''}</span></button>`;}).join('')||'<div class="empty" style="padding:20px">No match</div>';
+  const b=building(adminBuildingId); const menu=menuFor(adminBuildingId);
+  $('#ct-detail').innerHTML=`<div class="card" style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div><div style="font-size:16px;font-weight:700">${b.name} <span class="muted" style="font-weight:500">· ${b.city} · ${b.region}</span></div>
+        <div class="muted" style="font-size:12px;margin-top:3px">Template: <b>${DATA.cateringTemplates[b.cateringTemplate].name}</b>${DATA.cateringOverrides[b.id]?' · overridden for this building':''} · ${menu.length} items · ${b.externalId}</div></div>
+      <button class="btn sm primary" id="ct-add">+ Add catering item</button></div>
+    ${menu.map(it=>cateringSetupCard(it,adminBuildingId)).join('')}`;
+}
+$('#ct-search').addEventListener('input',e=>{ adminQuery=e.target.value; renderAdminHub(); const el=$('#ct-search'); el.focus(); });
+$('#ct-list').addEventListener('click',e=>{ const a=e.target.closest('[data-adminb]'); if(a){ adminBuildingId=a.dataset.adminb; renderAdminHub(); } });
+$('#ct-detail').addEventListener('input',e=>{ const c=e.target.closest('[data-cutoff]'); if(c){ const [bId,itemId]=c.dataset.cutoff.split('|'); const it=ensureOverride(bId).find(x=>x.id===itemId); it.cutoffHours=+c.value||0; save(); } });
+$('#ct-detail').addEventListener('click',e=>{
+  if(e.target.closest('#ct-add')){ const bId=adminBuildingId; const name=prompt('Item name (e.g. Premium Buffet):'); if(!name)return; const type=(prompt('Type: buffet / lunch / beverage / snack','buffet')||'buffet').toLowerCase(); const price=+prompt('Price per head ($):','20')||20; const cut=+prompt('Order cutoff (hours before):','24')||24; const m=ensureOverride(bId); m.push({id:'cust-'+Date.now(),name,type,pricePerHead:price,cutoffHours:cut,choiceGroups:(type==='buffet'||type==='lunch')?[{id:'g1',label:'Choices',pick:2,options:[{name:'Option A',veg:true},{name:'Option B',veg:false}]}]:[]}); save(); renderAdminHub(); toast('Catering item added'); return; }
+  const ao=e.target.closest('[data-addopt]'); if(ao){ const [bId,itemId,gid]=ao.dataset.addopt.split('|'); const name=prompt('New option name:'); if(!name)return; const g=ensureOverride(bId).find(x=>x.id===itemId).choiceGroups.find(x=>x.id===gid); g.options.push({name,veg:/veg|salad|fruit|fruit/i.test(name)}); save(); renderAdminHub(); toast('Option added'); }
 });
-$('#ct-add').onclick=()=>{ const sel=$('#ct-building'); const bId=sel.value||'bld-001'; const name=prompt('Item name (e.g. Premium Buffet):'); if(!name)return; const type=(prompt('Type: buffet / lunch / beverage / snack','buffet')||'buffet').toLowerCase(); const price=+prompt('Price per head ($):','20')||20; const cut=+prompt('Order cutoff (hours before):','24')||24; const m=ensureOverride(bId); const item={id:'cust-'+Date.now(),name,type,pricePerHead:price,cutoffHours:cut,choiceGroups:(type==='buffet'||type==='lunch')?[{id:'g1',label:'Choices',pick:2,options:[{name:'Option A',veg:true},{name:'Option B',veg:false}]}]:[]}; m.push(item); save(); renderCatering(); toast('Catering item added'); };
 
 /* ============================================================ DASHBOARD / RECS ============================================================ */
 function renderDashboard(){
@@ -468,6 +574,7 @@ $('#recs-refresh').onclick=()=>{renderRecs();toast('Re-scanned');};
 
 /* global clicks (board/requests/insights) */
 document.addEventListener('click',e=>{
+  const bm=e.target.closest('[data-bmode]'); if(bm){ bookMode=bm.dataset.bmode; if(bookMode==='grid'&&!wz.buildingId) wz.buildingId=DATA.user.favoriteBuildingId||'bld-001'; renderBook(); return; }
   const d=e.target.closest('[data-detail]'); if(d){openBookingDetail(DATA.bookings.find(b=>b.id===d.dataset.detail));return;}
   const al=e.target.closest('[data-allocate]'); if(al){const r=DATA.requests.find(x=>x.id===al.dataset.allocate);r._open=!r._open;renderRequests();return;}
   const ar=e.target.closest('[data-alloc-room]'); if(ar){const [rq,rm]=ar.dataset.allocRoom.split('|');allocSel[rq]=rm;renderRequests();return;}
@@ -483,6 +590,6 @@ load();
 applyTheme((()=>{try{return localStorage.getItem(THEME_KEY)||'corporate';}catch(e){return 'corporate';}})());
 wz=freshWizard();
 applyRole();
-renderWizard(); renderRequests(); renderReqCount();
-renderDashboard(); renderPlanner(); renderCatering(); renderRecs();
+renderBook(); renderRequests(); renderReqCount();
+renderDashboard(); renderPlanner(); renderAdminHub(); renderRecs();
 go('book');

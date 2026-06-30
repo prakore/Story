@@ -38,7 +38,8 @@
   <main class="main">
     <!-- BOOK A SPACE WIZARD -->
     <section class="screen on" id="screen-book">
-      <div class="top"><div><h1>✨ Book a Space</h1><p>Pick a building (defaults to your favourite), set the details, and the system lists matching rooms — or lets you request one. Add services & catering when you need them.</p></div></div>
+      <div class="top"><div><h1>✨ Book a Space</h1><p>Three ways to book — a guided wizard, an express single screen, or a calendar grid. Pick a building (defaults to your favourite) or leave blank to request one.</p></div></div>
+      <div class="seg" id="book-modes"></div>
       <div class="wz-steps" id="wz-steps"></div>
       <div id="wz-body"></div>
     </section>
@@ -88,13 +89,14 @@
 
     <!-- CATERING SETUP -->
     <section class="screen" id="screen-catering">
-      <div class="top"><div><h1>🍽️ Catering Setup</h1><p>Per-building catering. Define multi-choice buffets and lunch orders, simpler beverage/snack items, and the order cutoff for each. These feed the booking flow.</p></div></div>
-      <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-        <label style="font-size:12px;color:var(--mut);font-weight:650">Building</label>
-        <select id="ct-building" style="background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 12px;color:#fff;min-width:280px"></select>
-        <button class="btn sm primary" id="ct-add">+ Add catering item</button>
+      <div class="top"><div><h1>🍽️ Catering Setup</h1><p>Admin hub — pick a building on the left, manage its catering on the right. Define multi-choice buffets and lunch orders, simpler beverage/snack items, and the order cutoff for each.</p></div></div>
+      <div class="hub">
+        <div class="hub-master card">
+          <input id="ct-search" placeholder="Search buildings…"/>
+          <div class="hub-list" id="ct-list"></div>
+        </div>
+        <div id="ct-detail"></div>
       </div>
-      <div id="catering-list" style="display:flex;flex-direction:column;gap:14px"></div>
     </section>
 
     <!-- RECOMMENDATIONS -->
