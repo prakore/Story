@@ -19,17 +19,38 @@ const _pickN = (a,n,r)=>{ const c=[...a],out=[]; for(let i=0;i<n&&c.length;i++) 
 const _pad   = (n,w)=>String(n).padStart(w,'0');
 
 /* ---- reference lists ---- */
+// taxRate = combined local indirect-tax rate applied to the booking subtotal.
 const CITIES = [
-  {city:'New York',region:'Americas',code:'NYC'},{city:'San Francisco',region:'Americas',code:'SFO'},
-  {city:'Chicago',region:'Americas',code:'CHI'},{city:'Austin',region:'Americas',code:'AUS'},
-  {city:'Toronto',region:'Americas',code:'YYZ'},{city:'São Paulo',region:'Americas',code:'GRU'},
-  {city:'London',region:'EMEA',code:'LON'},{city:'Dublin',region:'EMEA',code:'DUB'},
-  {city:'Paris',region:'EMEA',code:'PAR'},{city:'Berlin',region:'EMEA',code:'BER'},
-  {city:'Amsterdam',region:'EMEA',code:'AMS'},{city:'Madrid',region:'EMEA',code:'MAD'},
-  {city:'Dubai',region:'EMEA',code:'DXB'},{city:'Singapore',region:'APAC',code:'SIN'},
-  {city:'Tokyo',region:'APAC',code:'TYO'},{city:'Sydney',region:'APAC',code:'SYD'},
-  {city:'Bangalore',region:'APAC',code:'BLR'},{city:'Hong Kong',region:'APAC',code:'HKG'},
+  {city:'New York',     region:'Americas',code:'NYC',country:'United States',state:'New York',     taxLabel:'Sales tax',       taxRate:0.08875},
+  {city:'San Francisco',region:'Americas',code:'SFO',country:'United States',state:'California',    taxLabel:'Sales tax',       taxRate:0.08625},
+  {city:'Chicago',      region:'Americas',code:'CHI',country:'United States',state:'Illinois',      taxLabel:'Sales tax',       taxRate:0.1025},
+  {city:'Austin',       region:'Americas',code:'AUS',country:'United States',state:'Texas',         taxLabel:'Sales tax',       taxRate:0.0825},
+  {city:'Toronto',      region:'Americas',code:'YYZ',country:'Canada',       state:'Ontario',       taxLabel:'HST',             taxRate:0.13},
+  {city:'São Paulo',    region:'Americas',code:'GRU',country:'Brazil',       state:'São Paulo',     taxLabel:'ICMS',            taxRate:0.18},
+  {city:'London',       region:'EMEA',    code:'LON',country:'United Kingdom',state:'England',      taxLabel:'VAT',             taxRate:0.20},
+  {city:'Dublin',       region:'EMEA',    code:'DUB',country:'Ireland',      state:'Leinster',      taxLabel:'VAT',             taxRate:0.23},
+  {city:'Paris',        region:'EMEA',    code:'PAR',country:'France',       state:'Île-de-France', taxLabel:'TVA',             taxRate:0.20},
+  {city:'Berlin',       region:'EMEA',    code:'BER',country:'Germany',      state:'Berlin',        taxLabel:'USt',             taxRate:0.19},
+  {city:'Amsterdam',    region:'EMEA',    code:'AMS',country:'Netherlands',  state:'North Holland', taxLabel:'BTW',             taxRate:0.21},
+  {city:'Madrid',       region:'EMEA',    code:'MAD',country:'Spain',        state:'Madrid',        taxLabel:'IVA',             taxRate:0.21},
+  {city:'Dubai',        region:'EMEA',    code:'DXB',country:'UAE',          state:'Dubai',         taxLabel:'VAT',             taxRate:0.05},
+  {city:'Singapore',    region:'APAC',    code:'SIN',country:'Singapore',    state:'Singapore',     taxLabel:'GST',             taxRate:0.09},
+  {city:'Tokyo',        region:'APAC',    code:'TYO',country:'Japan',        state:'Tokyo',         taxLabel:'Consumption tax', taxRate:0.10},
+  {city:'Sydney',       region:'APAC',    code:'SYD',country:'Australia',    state:'New South Wales',taxLabel:'GST',            taxRate:0.10},
+  {city:'Bangalore',    region:'APAC',    code:'BLR',country:'India',        state:'Karnataka',     taxLabel:'GST',             taxRate:0.18},
+  {city:'Hong Kong',    region:'APAC',    code:'HKG',country:'Hong Kong SAR',state:'Hong Kong',     taxLabel:'No sales tax',    taxRate:0.0},
 ];
+
+// which layouts each space type supports (the per-room multi-select default)
+const SETUP_BY_TYPE = {
+  'Huddle':      ['As-is / existing','Boardroom'],
+  'Meeting Room':['As-is / existing','Boardroom','U-shape'],
+  'Conference':  ['As-is / existing','Boardroom','U-shape','Hollow square'],
+  'Boardroom':   ['As-is / existing','Boardroom','U-shape','Hollow square'],
+  'Training':    ['As-is / existing','Classroom','U-shape','Cabaret','Theatre'],
+  'Theatre':     ['As-is / existing','Theatre','Classroom','Cabaret'],
+  'Banquet':     ['As-is / existing','Banquet','Cabaret','Theatre','Classroom'],
+};
 const BLD_NAMES = ['Helix','Beacon','Atrium','Quay','Meridian','Harbour','Lumen','Pioneer','Spectrum','Cobalt','Ironworks','Summit','Vertex','Aurora','Keystone','Lighthouse','Maple','Granite','Eastgate','Northpoint','Riverside','Skyline','Foundry','Observatory'];
 const BLD_SUFFIX = ['Tower','House','Centre','Campus','Place','Works','Plaza','Hall'];
 const ROOM_NAMES = ['Sequoia','Baltic','Sahara','Thames','Hudson','Willow','Cedar','Onyx','Coral','Marble','Aspen','Cobalt','Indigo','Saffron','Juniper','Basalt','Tundra','Cypress','Lagoon','Quartz','Ember','Dune','Fjord','Birch','Slate','Cove','Mesa','Verde','Aurora','Cirrus','Delta','Echo','Flint','Garnet','Halcyon','Iris'];
@@ -160,6 +181,7 @@ function buildEstate(){
           name:_pick(ROOM_NAMES,r), commonName:_pick(ROOM_NAMES,r),
           type:st.t, capacity:cap, amenities:ams,
           setupMins:st.setup, teardownMins:st.teardown,
+          setupTypes:[...(SETUP_BY_TYPE[st.t]||['As-is / existing'])],
           buildingId:bId, buildingName:bName, city:loc.city, region:loc.region,
           floorId:fId, floor:level,
           rate: Math.round((20 + cap*6 + (big?60:0)) /5)*5, rating:(3.9+r()*1.1).toFixed(1)*1,
@@ -169,6 +191,7 @@ function buildEstate(){
     }
     buildings.push({
       id:bId, externalId:`BLD-${_pad(i+1,4)}`, name:bName, city:loc.city, region:loc.region,
+      country:loc.country, state:loc.state, taxLabel:loc.taxLabel, taxRate:loc.taxRate,
       label:`${bName} · ${loc.city}`, floors, cateringTemplate:tpl,
     });
   }

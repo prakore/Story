@@ -131,7 +131,7 @@ let wz=null;
 function freshWizard(){
   const fav=DATA.user.favoriteBuildingId;
   return { step:0, buildingId:fav||null, date:TODAY, start:14, end:16, pax:12,
-    setup:DATA.setupTypes[1], eventType:DATA.eventTypes[1], wantExtras:false,
+    setups:[DATA.setupTypes[1]], eventType:DATA.eventTypes[1], wantExtras:false,
     spaceId:null, services:new Set(), catering:[], name:'', buildingQuery:'' };
 }
 function seq(){ return ['details', ...(wz.buildingId?['rooms']:[]), ...(wz.wantExtras?['services','catering']:[]), 'review']; }
@@ -159,6 +159,11 @@ function bsearchHTML(){ // shared building search field
       ${b?`<button class="btn sm ${fav===b.id?'':'ghost'}" id="wz-fav">${fav===b.id?'★ Favourite':'☆ Set favourite'}</button><button class="btn sm ghost" id="wz-clearb">✕ Clear</button>`:(fav?`<button class="btn sm ghost" id="wz-usefav">★ Use favourite</button>`:'')}
     </div></div>`;
 }
+function setupChipsHTML(){
+  // multi-select layouts. If a room is chosen, restrict to what that room supports.
+  const allowed = wz.spaceId ? space(wz.spaceId).setupTypes : DATA.setupTypes;
+  return `<div class="cg-opts">${allowed.map(t=>`<button type="button" class="opt-chip ${wz.setups.includes(t)?'on':''}" data-setupchip="${t}">${t}</button>`).join('')}</div>`;
+}
 function detailFieldsHTML(){
   return `<div class="row2">
       <div class="fg"><label>Attendees</label><input id="wz-pax" type="number" min="1" value="${wz.pax}" style="width:100%"></div>
@@ -167,8 +172,8 @@ function detailFieldsHTML(){
       <div class="fg"><label>Start</label><input id="wz-start" type="time" value="${fmtHr(wz.start)}" style="width:100%"></div>
       <div class="fg"><label>End</label><input id="wz-end" type="time" value="${fmtHr(wz.end)}" style="width:100%"></div></div>
     <div class="row2">
-      <div class="fg"><label>Setup type</label><select id="wz-setup" style="width:100%">${DATA.setupTypes.map(x=>`<option ${x===wz.setup?'selected':''}>${x}</option>`).join('')}</select></div>
-      <div class="fg"><label>Event type</label><select id="wz-event" style="width:100%">${DATA.eventTypes.map(x=>`<option ${x===wz.eventType?'selected':''}>${x}</option>`).join('')}</select></div></div>`;
+      <div class="fg"><label>Event type</label><select id="wz-event" style="width:100%">${DATA.eventTypes.map(x=>`<option ${x===wz.eventType?'selected':''}>${x}</option>`).join('')}</select></div></div>
+    <div class="fg"><label>Setup type(s) <span class="muted">— select all layouts you may use</span></label>${setupChipsHTML()}</div>`;
 }
 function servicesRowsHTML(bId){
   return servicesForBuilding(bId).map(s=>{const on=wz.services.has(s.id);return `<div class="opt"><div><div class="nm">${s.icon} ${s.name}</div><div class="sub">${money(s.price)} · ${s.provider} · confirms in ${fmtSla(s.confirmSla)}</div></div><button class="add ${on?'on':''}" data-svc="${s.id}">${on?'✓':'+'}</button></div>`;}).join('');
@@ -200,7 +205,9 @@ function renderExpress(){
       <div class="kv"><span>Room ${b&&wz.spaceId?`· ${(wz.end-wz.start)}h`:''}</span><b>${wz.spaceId?money(space(wz.spaceId).rate*(wz.end-wz.start)):(isReq?'at allocation':'—')}</b></div>
       <div class="kv"><span>Catering · ${wz.pax} pax</span><b>${money(t.cat)}</b></div>
       <div class="kv"><span>Services</span><b>${money(t.svc)}</b></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 4px"><span class="muted" style="font-size:11px">Total</span><span class="total">${money(t.total)}</span></div>
+      <div class="kv"><span>Subtotal</span><b>${money(t.subtotal)}</b></div>
+      <div class="kv"><span>${t.knownTax?`${t.taxLabel} ${(t.taxRate*100).toFixed(t.taxRate*100%1?2:1)}%`:'Tax'}</span><b>${t.knownTax?money(t.tax):'at allocation'}</b></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 4px"><span class="muted" style="font-size:11px">Total ${t.knownTax?'(incl. tax)':''}</span><span class="total">${money(t.total)}</span></div>
       <button class="btn primary" id="wz-confirm" style="width:100%" ${(b&&!wz.spaceId)?'disabled style="opacity:.5;width:100%"':''}>${isReq?'Request a room 📥':(wz.spaceId?'Confirm booking ✓':'Select a room →')}</button>
       <div class="muted" style="font-size:11px;margin-top:6px">Your centre: <b>${DATA.user.center}</b> (auto-filled)</div>
     </div>
@@ -266,10 +273,8 @@ function stepDetails(){
         <div class="fg"><label>Start</label><input id="wz-start" type="time" value="${fmtHr(wz.start)}" style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px;color:#fff"></div>
         <div class="fg"><label>End</label><input id="wz-end" type="time" value="${fmtHr(wz.end)}" style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px;color:#fff"></div>
       </div>
-      <div class="row2">
-        <div class="fg"><label>Setup type (layout)</label><select id="wz-setup" style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px;color:#fff">${DATA.setupTypes.map(x=>`<option ${x===wz.setup?'selected':''}>${x}</option>`).join('')}</select></div>
-        <div class="fg"><label>Event type</label><select id="wz-event" style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px;color:#fff">${DATA.eventTypes.map(x=>`<option ${x===wz.eventType?'selected':''}>${x}</option>`).join('')}</select></div>
-      </div>
+      <div class="fg"><label>Event type</label><select id="wz-event" style="width:100%;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px;color:#fff">${DATA.eventTypes.map(x=>`<option ${x===wz.eventType?'selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="fg"><label>Setup type(s) <span class="muted">— select all layouts you may use</span></label>${setupChipsHTML()}</div>
       <label class="check"><input type="checkbox" id="wz-extras" ${wz.wantExtras?'checked':''}> I need <b>services &amp; catering</b> for this booking</label>
     </div>
     <div class="card" style="border-left:3px solid var(--brand)">
@@ -362,17 +367,21 @@ function stepReview(){
       <div class="kv"><span>${isReq?'Request in':'Room'}</span><b>${sp?`${sp.name} · ${sp.type} · Fl ${sp.floor}`:(b?b.name:`${DATA.user.center} (planner allocates)`)}</b></div>
       ${sp?`<div class="kv"><span>Setup / teardown</span><b>${sp.setupMins}m / ${sp.teardownMins}m</b></div><div class="kv"><span>Room held</span><b>${fmtHr(wz.start-sp.setupMins/60)}–${fmtHr(wz.end+sp.teardownMins/60)}</b></div>`:''}
       <div class="kv"><span>When</span><b>${wz.date} · ${fmtHr(wz.start)}–${fmtHr(wz.end)}</b></div>
-      <div class="kv"><span>Attendees · setup · event</span><b>👥 ${wz.pax} · ${wz.setup} · ${wz.eventType}</b></div>
+      <div class="kv"><span>Attendees · event</span><b>👥 ${wz.pax} · ${wz.eventType}</b></div>
+      <div class="kv"><span>Setup type(s)</span><b>${wz.setups.join(', ')}</b></div>
+      ${sp&&wz.setups.some(x=>!sp.setupTypes.includes(x))?`<div class="kv"><span class="muted" style="color:var(--warn)">⚠ ${sp.name} doesn’t support</span><b style="color:var(--warn)">${wz.setups.filter(x=>!sp.setupTypes.includes(x)).join(', ')}</b></div>`:''}
       <div class="section-h"><h2 style="font-size:14px">🍽️ Catering</h2></div>${cateLines}
       <div class="section-h"><h2 style="font-size:14px">🛎️ Services</h2></div>${svcLines}
       <div class="section-h"><h2 style="font-size:14px">🧭 Booking journey</h2></div>${journeyHTML(j)}
     </div>
     <div class="card" style="position:sticky;top:20px">
-      <div class="muted" style="font-size:11px">${sp?'Estimated total':'Catering + services'}</div>
+      <div class="muted" style="font-size:11px">${sp?'Estimated total (incl. tax)':'Catering + services'}</div>
       <div class="total" style="margin:4px 0 14px">${money(t.total)}</div>
-      <div class="kv"><span>Room ${sp?`· ${(wz.end-wz.start)}h`:''}</span><b>${sp?money(sp.rate*(wz.end-wz.start)):'at allocation'}</b></div>
+      <div class="kv"><span>Room ${sp?`· ${(wz.end-wz.start)}h`:''}</span><b>${sp?money(t.room):'at allocation'}</b></div>
       <div class="kv"><span>Catering · ${wz.pax} pax</span><b>${money(t.cat)}</b></div>
       <div class="kv"><span>Services</span><b>${money(t.svc)}</b></div>
+      <div class="kv"><span>Subtotal</span><b>${money(t.subtotal)}</b></div>
+      <div class="kv"><span>${t.knownTax?`${t.taxLabel} (${(t.taxRate*100).toFixed(t.taxRate*100%1?2:1)}%) · ${t.taxLoc}`:'Tax'}</span><b>${t.knownTax?money(t.tax):'at allocation'}</b></div>
       <div class="jmini" style="margin-top:14px">⏱ ${isReq?'Est. room confirmation '+fmtSla(j.roomSla):'Room confirmed instantly'} · fully confirmed <b>${fmtSla(j.total)}</b></div>
       <button class="btn primary" id="wz-confirm" style="width:100%;margin-top:14px">${isReq?'Submit request 📥':'Confirm booking ✓'}</button>
       <button class="btn ghost sm" id="wz-back" style="width:100%;margin-top:8px">← Back</button>
@@ -381,9 +390,16 @@ function stepReview(){
 }
 function totals(){
   const sp=wz.spaceId?space(wz.spaceId):null;
-  const cat=wz.catering.reduce((s,c)=>s+catItem(wz.buildingId,c.itemId).pricePerHead*wz.pax,0);
+  const b=wz.buildingId?building(wz.buildingId):null;
+  const room=sp?sp.rate*(wz.end-wz.start):0;
+  const cat=wz.catering.reduce((s,c)=>s+(catItem(wz.buildingId,c.itemId)?.pricePerHead||0)*wz.pax,0);
   const svcC=[...wz.services].reduce((s,id)=>s+svc(id).price,0);
-  return {room:sp?sp.rate*(wz.end-wz.start):0,cat,svc:svcC,total:(sp?sp.rate*(wz.end-wz.start):0)+cat+svcC};
+  const subtotal=room+cat+svcC;
+  const taxRate=b?b.taxRate:null;
+  const tax=taxRate!=null?subtotal*taxRate:0;
+  return { room, cat, svc:svcC, subtotal, taxRate, tax,
+    taxLabel:b?b.taxLabel:null, taxLoc:b?`${b.state}, ${b.country}`:null, total:subtotal+tax,
+    knownTax: taxRate!=null };
 }
 
 /* wizard interactions */
@@ -394,7 +410,6 @@ $('#wz-body').addEventListener('input',e=>{
   else if(id==='wz-date') wz.date=e.target.value;
   else if(id==='wz-start') wz.start=t2d(e.target.value);
   else if(id==='wz-end') wz.end=t2d(e.target.value);
-  else if(id==='wz-setup') wz.setup=e.target.value;
   else if(id==='wz-event') wz.eventType=e.target.value;
   else if(id==='wz-name'){ wz.name=e.target.value; return; }
 });
@@ -420,6 +435,7 @@ $('#wz-body').addEventListener('click',e=>{
     if(!spaceFree(sid,wz.date,start,end)){ toast('Not enough free time there (setup/teardown buffer clash)',false); return; }
     wz.spaceId=sid; wz.start=start; wz.end=end; wz.name=''; bookMode='wizard'; renderBook(); gotoStep(wz.wantExtras?'services':'review'); return; }
   const sv=e.target.closest('[data-svc]'); if(sv){ const id=sv.dataset.svc; wz.services.has(id)?wz.services.delete(id):wz.services.add(id); renderBook(); return; }
+  const su=e.target.closest('[data-setupchip]'); if(su){ const t=su.dataset.setupchip; const i=wz.setups.indexOf(t); i>=0?(wz.setups.length>1&&wz.setups.splice(i,1)):wz.setups.push(t); renderBook(); return; }
   const ct=e.target.closest('[data-cat]'); if(ct&&!ct.disabled){ toggleCatering(ct.dataset.cat); return; }
   const op=e.target.closest('[data-opt]'); if(op){ const [itemId,gid,enc]=op.dataset.opt.split('|'); toggleOption(itemId,gid,decodeURIComponent(enc)); return; }
   if(e.target.closest('#wz-next')){ if(!validateStep())return; stepNext(); return; }
@@ -453,14 +469,14 @@ function confirmBooking(){
     if(!spaceFree(wz.spaceId,wz.date,wz.start,wz.end)){ toast('That room is no longer free',false); gotoStep('rooms'); return; }
     DATA.bookings.push({ id:'b'+Date.now(), spaceId:wz.spaceId, title:wz.name.slice(0,28),
       client:wz.eventType==='Internal meeting'?'Internal':wz.name.split('—')[0].trim(), start:wz.start, end:wz.end, pax:wz.pax,
-      status:'new', catering:wz.catering, services:[...wz.services], date:wz.date, planner:'p1', setup:wz.setup, eventType:wz.eventType });
+      status:'new', catering:wz.catering, services:[...wz.services], date:wz.date, planner:'p1', setup:wz.setups.join(', '), setups:[...wz.setups], eventType:wz.eventType });
     save(); toast(`${space(wz.spaceId).name} booked ${fmtHr(wz.start)}–${fmtHr(wz.end)}`);
     if(currentRole==='planner') renderPlanner();
     wz=freshWizard(); renderBook(); go(currentRole==='planner'?'planner':'book');
   } else {
     DATA.requests.push({ id:'rq'+Date.now(), requester:me().name, meeting:wz.name, eventType:wz.eventType, pax:wz.pax,
       date:wz.date, start:wz.start, end:wz.end, buildingId:null, region:DATA.user.homeRegion, preferredSpaceId:null,
-      setup:wz.setup, amenities:[], catering:wz.catering, services:[...wz.services], notes:'Submitted via Book a Space — no building chosen.', status:'pending', allocatedSpaceId:null });
+      setup:wz.setups.join(', '), setups:[...wz.setups], amenities:[], catering:wz.catering, services:[...wz.services], notes:'Submitted via Book a Space — no building chosen.', status:'pending', allocatedSpaceId:null });
     save(); toast('Request submitted — a planner will allocate a room'); renderRequests(); renderReqCount();
     wz=freshWizard(); renderBook(); go('requests');
   }
@@ -505,7 +521,7 @@ function allocate(reqId){
   const sid=allocSel[reqId]||reqCandidates(req).find(o=>o.free&&o.sp.capacity>=req.pax)?.sp.id;
   if(!sid){toast('Pick a free room',false);return;}
   if(!spaceFree(sid,req.date,req.start,req.end)){toast('Room no longer free',false);return;}
-  DATA.bookings.push({ id:'b'+Date.now(), spaceId:sid, title:req.meeting.slice(0,28), client:req.eventType==='Internal meeting'?'Internal':req.meeting.split('—')[0].trim(), start:req.start, end:req.end, pax:req.pax, status:'new', catering:req.catering, services:req.services, date:req.date, planner:'p1', setup:req.setup, eventType:req.eventType });
+  DATA.bookings.push({ id:'b'+Date.now(), spaceId:sid, title:req.meeting.slice(0,28), client:req.eventType==='Internal meeting'?'Internal':req.meeting.split('—')[0].trim(), start:req.start, end:req.end, pax:req.pax, status:'new', catering:req.catering, services:req.services, date:req.date, planner:'p1', setup:req.setup, setups:req.setups, eventType:req.eventType });
   req.status='allocated'; req.allocatedSpaceId=sid; req._open=false; delete allocSel[reqId];
   save(); renderRequests(); renderReqCount(); renderPlanner(); renderDashboard();
   toast(`Allocated ${space(sid).name} (${space(sid).buildingName}) to ${req.requester}`);
@@ -547,11 +563,15 @@ function openBookingDetail(b){
   $('#drawer-head').innerHTML=`<h2>${b.title}</h2><div class="sub">${sp.name} · ${sp.buildingName} · ${fmtHr(b.start)}–${fmtHr(b.end)} · <span class="tag">${b.status}</span></div>`;
   $('#drawer-body').innerHTML=`<div class="kv"><span>Client / event</span><b>${b.client} · ${b.eventType||'—'}</b></div>
     <div class="kv"><span>Space ID</span><b>${sp.externalId}</b></div>
-    <div class="kv"><span>Attendees · setup</span><b>👥 ${b.pax} · ${b.setup||'—'}</b></div>
+    <div class="kv"><span>Attendees · setup</span><b>👥 ${b.pax} · ${(b.setups?b.setups.join(', '):b.setup)||'—'}</b></div>
     <div class="kv"><span>Setup / teardown</span><b>${sp.setupMins}m / ${sp.teardownMins}m</b></div>
     <div class="kv"><span>Room held</span><b>${fmtHr(b.start-sp.setupMins/60)}–${fmtHr(b.end+sp.teardownMins/60)}</b></div>
     <div class="section-h"><h2 style="font-size:14px">🍽️ Catering</h2></div>${cRows}
     <div class="section-h"><h2 style="font-size:14px">🛎️ Services</h2></div>${sRows}
+    ${(()=>{const bd=building(sp.buildingId);const sub=sp.rate*(b.end-b.start)+b.catering.reduce((x,c)=>x+(catItem(sp.buildingId,c.itemId)?.pricePerHead||0)*b.pax,0)+b.services.reduce((x,id)=>x+svc(id).price,0);const tax=sub*bd.taxRate;return `<div class="section-h"><h2 style="font-size:14px">💷 Charges</h2></div>
+      <div class="kv"><span>Subtotal</span><b>${money(sub)}</b></div>
+      <div class="kv"><span>${bd.taxLabel} (${(bd.taxRate*100).toFixed(bd.taxRate*100%1?2:1)}%) · ${bd.state}, ${bd.country}</span><b>${money(tax)}</b></div>
+      <div class="kv"><span><b>Total</b></span><b>${money(sub+tax)}</b></div>`;})()}
     <div class="section-h"><h2 style="font-size:14px">🧭 Journey</h2></div>${journeyHTML(journeyFor({kind:'booking',buildingId:sp.buildingId,spaceId:b.spaceId,catering:b.catering,services:b.services,status:b.status}))}`;
   $('#drawer-foot').innerHTML='';
   drawer.classList.add('on'); scrim.classList.add('on');
@@ -569,8 +589,10 @@ let adminBuildingId=null, adminQuery='';
 function ensureCatOverride(cid){ if(!DATA.catererOverrides[cid]) DATA.catererOverrides[cid]=JSON.parse(JSON.stringify(DATA.caterers[cid].items)); return DATA.catererOverrides[cid]; }
 function cateringSetupCard(it,cid){
   const groups=(it.choiceGroups||[]).map(g=>`<div class="cg"><div class="cg-h">${g.label} <span class="muted">— pick ${g.pick}</span></div><div class="cg-opts">${g.options.map(o=>`<span class="opt-chip on">${o.name}${o.veg?' 🌱':''}</span>`).join('')}<button class="opt-chip add-opt" data-addopt="${cid}|${it.id}|${g.id}">+ option</button></div></div>`).join('');
-  return `<div class="ci"><div class="ci-head"><div><div class="nm">${it.name} <span class="cat-type ${it.type}">${it.type}</span></div><div class="sub">${money(it.pricePerHead)}/head</div></div>
-    <div style="display:flex;align-items:center;gap:8px"><label class="muted" style="font-size:11.5px;margin:0">cutoff (h)</label><input type="number" min="0" value="${it.cutoffHours}" data-cutoff="${cid}|${it.id}" style="width:72px"></div></div>
+  return `<div class="ci"><div class="ci-head"><div><div class="nm">${it.name} <span class="cat-type ${it.type}">${it.type}</span></div></div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px"><label class="muted" style="font-size:11.5px;margin:0">$ / head</label><input type="number" min="0" step="0.5" value="${it.pricePerHead}" data-price="${cid}|${it.id}" style="width:78px"></div>
+      <div style="display:flex;align-items:center;gap:6px"><label class="muted" style="font-size:11.5px;margin:0">cutoff (h)</label><input type="number" min="0" value="${it.cutoffHours}" data-cutoff="${cid}|${it.id}" style="width:72px"></div></div></div>
     ${groups?`<div class="ci-groups" style="margin-top:10px">${groups}</div>`:'<div class="muted" style="font-size:12px;margin-top:8px">Simple item — no choices.</div>'}</div>`;
 }
 function renderAdminHub(){
@@ -591,7 +613,9 @@ function renderAdminHub(){
 }
 $('#ct-search').addEventListener('input',e=>{ adminQuery=e.target.value; renderAdminHub(); $('#ct-search').focus(); });
 $('#ct-list').addEventListener('click',e=>{ const a=e.target.closest('[data-adminb]'); if(a){ adminBuildingId=a.dataset.adminb; renderAdminHub(); } });
-$('#ct-detail').addEventListener('input',e=>{ const c=e.target.closest('[data-cutoff]'); if(c){ const [cid,itemId]=c.dataset.cutoff.split('|'); const it=ensureCatOverride(cid).find(x=>x.id===itemId); it.cutoffHours=+c.value||0; save(); } });
+$('#ct-detail').addEventListener('input',e=>{
+  const c=e.target.closest('[data-cutoff]'); if(c){ const [cid,itemId]=c.dataset.cutoff.split('|'); ensureCatOverride(cid).find(x=>x.id===itemId).cutoffHours=+c.value||0; save(); return; }
+  const p=e.target.closest('[data-price]'); if(p){ const [cid,itemId]=p.dataset.price.split('|'); ensureCatOverride(cid).find(x=>x.id===itemId).pricePerHead=+p.value||0; save(); } });
 $('#ct-detail').addEventListener('change',e=>{ if(e.target.id==='ct-addcat'&&e.target.value){ DATA.buildingCaterers[adminBuildingId]=[...buildingCatererIds(adminBuildingId),e.target.value]; save(); renderAdminHub(); toast('Caterer assigned'); } });
 $('#ct-detail').addEventListener('click',e=>{
   const ai=e.target.closest('[data-additem]'); if(ai){ const cid=ai.dataset.additem; const name=prompt('Item name (e.g. Premium Buffet):'); if(!name)return; const type=(prompt('Type: buffet / lunch / beverage / snack','buffet')||'buffet').toLowerCase(); const price=+prompt('Price per head ($):','20')||20; const cut=+prompt('Order cutoff (hours before):','24')||24; ensureCatOverride(cid).push({id:'cust-'+Date.now(),name,type,pricePerHead:price,cutoffHours:cut,choiceGroups:(type==='buffet'||type==='lunch')?[{id:'g1',label:'Choices',pick:2,options:[{name:'Option A',veg:true},{name:'Option B',veg:false}]}]:[]}); save(); renderAdminHub(); toast('Item added'); return; }
@@ -660,6 +684,8 @@ function renderSpaceDetail(){
       <div class="fg"><label>Setup (mins)</label><input type="number" min="0" data-edit="setupMins" value="${s.setupMins}"></div>
       <div class="fg"><label>Teardown (mins)</label><input type="number" min="0" data-edit="teardownMins" value="${s.teardownMins}"></div></div>
     <div class="fg"><label>Hourly rate ($)</label><input type="number" min="0" data-edit="rate" value="${s.rate}"></div>
+    <div class="fg"><label>Supported setup type(s) <span class="muted">(multi-select — what layouts this room offers)</span></label>
+      <div class="cg-opts">${DATA.setupTypes.map(t=>`<button class="opt-chip ${(s.setupTypes||[]).includes(t)?'on':''}" data-setuptoggle="${t}">${t}</button>`).join('')}</div></div>
     <div class="fg"><label>Amenities <span class="muted">(click to toggle — from the catalog)</span></label>
       <div class="cg-opts">${DATA.amenityCatalog.map(a=>`<button class="opt-chip ${owned.has(a.name)?'on':''}" data-amtoggle="${a.name}">${a.icon} ${a.name}</button>`).join('')}</div></div>
   </div>`;
@@ -672,7 +698,9 @@ $('#tree').addEventListener('click',e=>{
   const ts=e.target.closest('[data-ts]'); if(ts){ treeSel=ts.dataset.ts; renderExplorer(); }
 });
 $('#tree-detail').addEventListener('input',e=>{ const ed=e.target.closest('[data-edit]'); if(ed){ let v=ed.value; if(['capacity','setupMins','teardownMins','rate'].includes(ed.dataset.edit)) v=+v||0; editSpace(ed.dataset.edit,v); if(ed.dataset.edit==='name'||ed.dataset.edit==='capacity'||ed.dataset.edit==='type') renderExplorer(); } });
-$('#tree-detail').addEventListener('click',e=>{ const am=e.target.closest('[data-amtoggle]'); if(am){ const s=space(treeSel); const n=am.dataset.amtoggle; const set=new Set(s.amenities); set.has(n)?set.delete(n):set.add(n); s.amenities=[...set]; (DATA.spaceOverrides[treeSel]=DATA.spaceOverrides[treeSel]||{}).amenities=s.amenities; save(); renderSpaceDetail(); } });
+$('#tree-detail').addEventListener('click',e=>{
+  const am=e.target.closest('[data-amtoggle]'); if(am){ const s=space(treeSel); const n=am.dataset.amtoggle; const set=new Set(s.amenities); set.has(n)?set.delete(n):set.add(n); s.amenities=[...set]; (DATA.spaceOverrides[treeSel]=DATA.spaceOverrides[treeSel]||{}).amenities=s.amenities; save(); renderSpaceDetail(); return; }
+  const st=e.target.closest('[data-setuptoggle]'); if(st){ const s=space(treeSel); const n=st.dataset.setuptoggle; const set=new Set(s.setupTypes||[]); set.has(n)?(set.size>1&&set.delete(n)):set.add(n); s.setupTypes=[...set]; (DATA.spaceOverrides[treeSel]=DATA.spaceOverrides[treeSel]||{}).setupTypes=s.setupTypes; save(); renderSpaceDetail(); } });
 
 /* ============================================================ DASHBOARD / RECS ============================================================ */
 function renderDashboard(){
