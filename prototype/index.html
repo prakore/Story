@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Convene — Client Conference Room Booking</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;650;700;750;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">C</div>
+      <div><b>Convene</b><span>Client Booking Suite</span></div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="lbl">Workspace</div>
+      <button data-screen="dashboard" class="on"><span class="ic">📊</span> Dashboard</button>
+      <button data-screen="finder"><span class="ic">✨</span> AI Room Finder</button>
+      <button data-screen="rooms"><span class="ic">🏢</span> Rooms</button>
+      <div class="lbl">Planning</div>
+      <button data-screen="planner"><span class="ic">🗓️</span> Planner Board</button>
+      <button data-screen="recs"><span class="ic">🤖</span> Recommendations</button>
+    </nav>
+    <div class="me">
+      <div class="avatar">AM</div>
+      <div style="font-size:12.5px"><b>Ava Mendel</b><div style="color:var(--mut2);font-size:11px">Workplace Lead</div></div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <!-- DASHBOARD -->
+    <section class="screen on" id="screen-dashboard">
+      <div class="top">
+        <div><h1>Good morning, Ava 👋</h1><p>Tuesday, 30 June 2026 · 9 client bookings today across HQ Tower & Annex. Two need your attention.</p></div>
+        <button class="btn primary" data-goto="finder">✨ Find a room with AI</button>
+      </div>
+      <div class="cards stats" id="dash-stats"></div>
+      <div class="section-h"><h2>⚠️ Needs your attention</h2><span class="lnk" data-goto="recs">View all recommendations →</span></div>
+      <div class="cards insights" id="dash-insights"></div>
+      <div class="section-h"><h2>Top rooms today</h2><span class="lnk" data-goto="rooms">Browse all rooms →</span></div>
+      <div class="cards rooms" id="dash-rooms"></div>
+    </section>
+
+    <!-- AI ROOM FINDER -->
+    <section class="screen" id="screen-finder">
+      <div class="top"><div><h1>✨ AI Room Finder</h1><p>Describe the meeting. The recommender ranks every space on capacity fit, AV, catering readiness, location and client tier — then explains each match.</p></div></div>
+      <div class="cards finder">
+        <div class="card form">
+          <div class="fg"><label>Client / meeting name</label><input id="f-name" value="Acme Corp — Contract signing"/></div>
+          <div class="row2">
+            <div class="fg"><label>Attendees</label><input id="f-pax" type="number" value="12" min="1"/></div>
+            <div class="fg"><label>Client tier</label><select id="f-tier"><option>Tier-1 (VIP)</option><option selected>Tier-2</option><option>Internal</option></select></div>
+          </div>
+          <div class="row2">
+            <div class="fg"><label>Date</label><input id="f-date" type="date" value="2026-06-30"/></div>
+            <div class="fg"><label>Building</label><select id="f-bldg"><option selected>Any</option><option>HQ Tower</option><option>Annex</option></select></div>
+          </div>
+          <div class="fg"><label>Must-have features</label>
+            <div class="toggles" id="f-feat">
+              <span class="tg on" data-f="VC suite">Video conf</span>
+              <span class="tg" data-f="4K display">4K display</span>
+              <span class="tg" data-f="Step-free">Step-free</span>
+              <span class="tg" data-f="Hearing loop">Hearing loop</span>
+              <span class="tg" data-f="Skyline view">View</span>
+              <span class="tg on" data-f="catering">Catering-ready</span>
+            </div>
+          </div>
+          <div class="fg"><label>Notes for the AI (optional)</label><textarea id="f-notes" rows="2" placeholder="e.g. needs a working lunch, premium feel, near reception">Premium feel, working lunch for the room.</textarea></div>
+          <button class="btn primary" id="f-run" style="width:100%">✨ Recommend rooms</button>
+        </div>
+        <div>
+          <div class="ai-banner"><div class="dot">🧠</div><div><b id="ai-headline">Ready when you are</b><p id="ai-sub">Set the meeting details and run the recommender to see ranked, explained matches.</p></div></div>
+          <div class="cards rooms" id="finder-results"><div class="empty">No results yet — hit “Recommend rooms”.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROOMS -->
+    <section class="screen" id="screen-rooms">
+      <div class="top"><div><h1>Rooms</h1><p>8 client-ready spaces synced live from facilities (IWMS) and Microsoft 365 calendars.</p></div>
+        <button class="btn primary" data-goto="finder">✨ Find a room with AI</button></div>
+      <div class="cards rooms" id="rooms-all"></div>
+      <p class="banner-note"><b>Where this data comes from:</b> space & floor attributes are hydrated from the IWMS / facilities system; live availability from Microsoft 365 / Google Workspace two-way calendar sync; the catering menu from the caterer's product feed; ancillary services from AV / IT / cleaning ticketing. In this prototype it's mocked in <code>data.js</code>.</p>
+    </section>
+
+    <!-- PLANNER -->
+    <section class="screen" id="screen-planner">
+      <div class="top"><div><h1>🗓️ Planner Board</h1><p>Today's client bookings across all rooms. Click any block to open the booking, its catering and services. Click an empty slot to draft a new booking.</p></div>
+        <button class="btn primary" data-goto="finder">+ New booking</button></div>
+      <div class="cards stats" id="planner-stats" style="margin-bottom:18px"></div>
+      <div class="planner-wrap">
+        <div class="planner-bar">
+          <div style="display:flex;gap:10px;align-items:center"><b style="font-size:14px">HQ Tower &amp; Annex</b><span class="muted" style="font-size:12px">· 30 Jun 2026 · 08:00–20:00</span></div>
+          <div class="legend">
+            <span><i style="background:linear-gradient(135deg,#34d399,#22d3ee)"></i>Confirmed</span>
+            <span><i style="background:linear-gradient(135deg,#fbbf24,#f59e0b)"></i>Tentative</span>
+            <span><i style="background:linear-gradient(135deg,#a855f7,#ec4899)"></i>New / draft</span>
+          </div>
+        </div>
+        <div class="grid-scroll">
+          <div class="tl">
+            <div class="tl-head"><div class="tl-room" style="font-weight:700">Room</div><div class="tl-hours" id="tl-hours"></div></div>
+            <div id="tl-body"></div>
+          </div>
+        </div>
+      </div>
+      <div class="section-h"><h2>Planner workload</h2></div>
+      <div class="cards" style="grid-template-columns:repeat(3,1fr)" id="planner-load"></div>
+    </section>
+
+    <!-- RECOMMENDATIONS -->
+    <section class="screen" id="screen-recs">
+      <div class="top"><div><h1>🤖 AI Recommendations</h1><p>Proactive planner intelligence — utilisation, catering lead-time risk, client-experience upsell and sustainability, each with a confidence score and a one-click action.</p></div>
+        <button class="btn" id="recs-refresh">↻ Re-scan</button></div>
+      <div class="cards stats" id="recs-stats" style="margin-bottom:6px"></div>
+      <div class="section-h"><h2>Suggested actions</h2></div>
+      <div class="cards insights" id="recs-list"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ====== DRAWER (room booking + booking detail) ====== -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh"><button class="x" id="drawer-x">✕</button><div id="drawer-head"></div></div>
+  <div class="db" id="drawer-body"></div>
+  <div class="df" id="drawer-foot"></div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
