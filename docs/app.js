@@ -5,6 +5,7 @@
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const money=n=>'$'+Math.round(n).toLocaleString();
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const svc=id=>DATA.services.find(s=>s.id===id);
 const space=id=>DATA.spaces.find(s=>s.id===id);
 const building=id=>DATA.buildings.find(b=>b.id===id);
@@ -123,6 +124,10 @@ function rankSpaces(list,req){
     (req.amenities||[]).forEach(a=>{ if(sp.amenities.includes(a)){s+=8;why.push(['pos',a]);} else {s-=14;why.push(['neg','No '+a]);} });
     if(req.eventType==='Client meeting'||req.eventType==='Board meeting'){ if(sp.amenities.includes('Skyline view')){s+=8;why.push(['pos','Skyline view']);} if(sp.amenities.includes('4K display'))s+=5; }
     s+=(sp.rating-4.3)*12;
+    (DATA.user.prefs?.accessibility||[]).forEach(a=>{
+      if(sp.amenities.includes(a)) s+=3;
+      else { s-=12; why.push(['neg',`No ${a} (your accessibility need)`]); }
+    });
     if(DATA.user.favoriteRoomIds.includes(sp.id)){ s+=14; why.push(['pos','★ Your favourite room']); }
     if(!free){const c=conflictsForSpace(sp.id,req.date,req.start,req.end)[0];s-=70;why.push(['neg',`Busy / buffer ${fmtHr(c.start)}–${fmtHr(c.end)}`]);}
     return {sp,why,free,score:Math.max(8,Math.min(98,Math.round(52+s*0.62)))};
@@ -229,8 +234,18 @@ function applyUsual(){
 }
 function assistantReply(text){
   const t=text.toLowerCase(); const picks={services:new Set(),catering:[],parts:[]};
-  let pax=null; const m=t.match(/(\d+)\s*(people|pax|attendees|persons?)/); if(m){pax=+m[1];picks.parts.push(`${pax} attendees`);}
+  let pax=null; const m=t.match(/(\d+)\s*(people|pax|attendees|persons?)/) || t.match(/\bfor\s+(\d+)(?!\s*(?::|am|pm))/);
+  if(m){pax=+m[1];picks.parts.push(`${pax} attendees`);}
+  // time: "at 3pm", "3:30 pm", "15:00"
+  let start=null; const tm=t.match(/(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/) || t.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+  if(tm){ let hh=+tm[1], mm=+(tm[2]||0); const ap=tm[3]; if(ap==='pm'&&hh<12)hh+=12; if(ap==='am'&&hh===12)hh=0;
+    if(hh>=H0&&hh<H1){ start=hh+mm/60; picks.parts.push(`starting ${fmtHr(start)} 🕑`); } }
+  // building by name ("in Beacon Tower", "at Meridian")
+  let buildingId=null; const hit=DATA.buildings.find(b=>t.includes(b.name.toLowerCase()))||DATA.buildings.find(b=>t.includes(b.name.split(' ')[0].toLowerCase())&&b.name.split(' ')[0].length>4);
+  if(hit){ buildingId=hit.id; picks.parts.push(`in ${hit.name} 🏢`); }
+  if(/favourite|favorite|usual room/.test(t) && DATA.user.favoriteRoomIds.length){ const f=space(DATA.user.favoriteRoomIds[0]); buildingId=f.buildingId; picks.parts.push(`your favourite room ★ ${f.name}`); }
   if(/lunch/.test(t)){picks.catering.push('metro-lunch');picks.parts.push('working lunch 🍽️');}
+  if(/buffet/.test(t)){picks.catering.push('metro-buffet');picks.parts.push('buffet 🍽️');}
   if(/coffee|tea|beverage/.test(t)){picks.catering.push('metro-bev');picks.parts.push('coffee cart ☕');}
   if(/snack|pastr/.test(t)){picks.catering.push('metro-snack');picks.parts.push('snacks 🥐');}
   if(/\bav\b|technician|sound|production/.test(t)){picks.services.add('s1');picks.parts.push('AV technician 🎛️');}
@@ -238,16 +253,26 @@ function assistantReply(text){
   if(/clean/.test(t)){picks.services.add('s3');}
   let eventType=null; if(/client|customer|external/.test(t)){eventType='Client meeting';picks.parts.push('client meeting');}
   else if(/training|workshop/.test(t)){eventType='Training / workshop';}
-  if(!picks.parts.length){ return {text:`I can set up a booking and add your usual extras. Try: “client meeting for 12 with lunch and AV”, or use a suggestion above.`}; }
+  else if(/interview/.test(t)){eventType='Interview';}
+  else if(/town ?hall|all ?hands/.test(t)){eventType='Town hall';}
+  if(!picks.parts.length){ return {text:`I can set up a booking and add your usual extras. Try: “client meeting for 12 at 3pm in Beacon Tower with lunch and AV”, or use a suggestion above.`}; }
   return { text:`Got it — I'll prepare ${picks.parts.join(', ')}. Open it in the booking flow to pick a room.`,
-    apply:{pax,eventType,services:[...picks.services],catering:picks.catering} };
+    apply:{pax,eventType,start,buildingId,services:[...picks.services],catering:picks.catering} };
 }
 function applyAssistant(p){
   wz=freshWizard(); if(p.pax)wz.pax=p.pax; if(p.eventType)wz.eventType=p.eventType;
+  if(p.buildingId)wz.buildingId=p.buildingId;
+  if(p.start!=null){ const dur=wz.end-wz.start; wz.start=p.start; wz.end=Math.min(H1,p.start+dur); }
   wz.wantExtras=(p.services.length||p.catering.length)>0; wz.services=new Set(p.services); wz.catering=p.catering.map(id=>({itemId:id,choices:{}}));
   bookMode='wizard'; renderBook(); gotoStep(wz.buildingId?'rooms':'details');
   toast('Opened in the booking flow');
 }
+function sendChat(){
+  const inp=$('#ask-input'); const v=(inp?.value||'').trim(); if(!v)return;
+  chatLog.push({role:'user',text:v}); chatLog.push({role:'bot',...assistantReply(v)}); renderBook();
+  const ni=$('#ask-input'); if(ni) ni.focus();
+}
+$('#wz-body').addEventListener('keydown',e=>{ if(e.target.id==='ask-input'&&e.key==='Enter') sendChat(); });
 function renderAssistant(){
   const {h,topSvc,topCat}=histSuggestions();
   const af=actingFor();
@@ -256,7 +281,7 @@ function renderAssistant(){
     <div class="chips" style="margin-top:8px">${x.catering.map(c=>`<span class="chip b">🍽️ ${catItem(x.buildingId,c)?.name||c}</span>`).join('')}${x.services.map(s=>`<span class="chip">${svc(s).icon} ${svc(s).name.split(' ').slice(0,2).join(' ')}</span>`).join('')}</div></button>`).join('');
   const usual=`<button class="card asg" data-applyusual><div style="font-weight:700;font-size:13.5px">✨ Your usual extras</div>
     <div class="muted" style="font-size:12px;margin-top:3px">${topCat.slice(0,1).map(c=>catItem('bld-001',c)?.name).join('')||'—'} + ${topSvc.slice(0,2).map(s=>svc(s).name.split(' ').slice(0,2).join(' ')).join(', ')||'—'}</div></button>`;
-  const log=chatLog.map(m=>`<div class="msg ${m.role}">${m.text}${m.apply?`<div style="margin-top:8px"><button class="btn sm primary" data-applyask='${JSON.stringify(m.apply).replace(/'/g,"&#39;")}'>Open in booking →</button></div>`:''}</div>`).join('');
+  const log=chatLog.map(m=>`<div class="msg ${m.role}">${m.role==='user'?esc(m.text):m.text}${m.apply?`<div style="margin-top:8px"><button class="btn sm primary" data-applyask='${JSON.stringify(m.apply).replace(/'/g,"&#39;")}'>Open in booking →</button></div>`:''}</div>`).join('');
   $('#wz-body').innerHTML=`<div class="cards" style="grid-template-columns:1fr 300px;gap:18px;align-items:start">
     <div class="card" style="display:flex;flex-direction:column;min-height:440px">
       <div style="font-weight:700">✨ Booking Assistant</div>
@@ -302,7 +327,9 @@ function servicesRowsHTML(bId){
 }
 function cateringSectionsHTML(bId){
   const ids=bId?buildingCatererIds(bId):['cat_metro','cat_quick'];
-  return ids.map(cid=>{const c=DATA.caterers[cid];const items=catererItems(cid);
+  const diet=DATA.user.prefs?.dietary;
+  const dietNote=diet?`<div class="jmini" style="margin-bottom:12px">🌱 Dietary preference on file: <b>${esc(diet)}</b> — passed to the caterer with every order. Veg items are marked 🌱.</div>`:'';
+  return dietNote+ids.map(cid=>{const c=DATA.caterers[cid];const items=catererItems(cid);
     return `<div class="caterer-sec"><div class="caterer-h">🍽️ ${c.name} <span class="muted">· ${c.cuisine} · ⭐${c.rating}</span></div>
       ${items.map(it=>cateringItemHTML(it,bId)).join('')}</div>`;}).join('');
 }
@@ -433,7 +460,7 @@ function spaceCard(sp,o={}){
   return `<div class="card room ${busy?'busy':''} ${o.sel?'picked':''}" data-pickspace="${sp.id}">
     <div class="ph"><span class="ph-mono">${sp.type.charAt(0)}</span><span class="ph-t">${sp.type}</span>
       ${o.score!=null?`<span class="score">${o.score}% fit</span>`:''}</div>
-    <div class="bd"><h3>${sp.name} <span class="muted" style="font-size:12px;font-weight:600">${money(sp.rate)}/hr</span></h3>
+    <div class="bd"><h3>${DATA.user.favoriteRoomIds.includes(sp.id)?'<span style="color:var(--warn)">★</span> ':''}${sp.name} <span class="muted" style="font-size:12px;font-weight:600">${money(sp.rate)}/hr</span></h3>
       <div class="meta">Floor ${sp.floor} · 👥 ${sp.capacity} · ⭐ ${sp.rating} · ${sp.externalId} · <span class="avail-inline ${busy?'no':'ok'}">${busy?'Busy':'Available'}</span></div>
       <div class="chips">${tags}${buf}</div>
       ${o.why?`<div class="why"><b>Why:</b> ${o.why.filter(w=>w[0]==='pos').slice(0,3).map(w=>w[1]).join(' · ')||'—'}</div>`:''}
@@ -559,7 +586,7 @@ $('#wz-body').addEventListener('click',e=>{
   const sv=e.target.closest('[data-svc]'); if(sv){ const id=sv.dataset.svc; wz.services.has(id)?wz.services.delete(id):wz.services.add(id); renderBook(); return; }
   const ah=e.target.closest('[data-applyhist]'); if(ah){ applyHistory(+ah.dataset.applyhist); return; }
   if(e.target.closest('[data-applyusual]')){ applyUsual(); return; }
-  if(e.target.closest('#ask-send')){ const inp=$('#ask-input'); const v=(inp?.value||'').trim(); if(!v)return; chatLog.push({role:'user',text:v}); chatLog.push({role:'bot',...assistantReply(v)}); renderBook(); return; }
+  if(e.target.closest('#ask-send')){ sendChat(); return; }
   const aa=e.target.closest('[data-applyask]'); if(aa){ applyAssistant(JSON.parse(aa.dataset.applyask.replace(/&#39;/g,"'"))); return; }
   const su=e.target.closest('[data-setupchip]'); if(su){ const t=su.dataset.setupchip; const i=wz.setups.indexOf(t); i>=0?(wz.setups.length>1&&wz.setups.splice(i,1)):wz.setups.push(t); renderBook(); return; }
   const ct=e.target.closest('[data-cat]'); if(ct&&!ct.disabled){ toggleCatering(ct.dataset.cat); return; }
@@ -603,7 +630,8 @@ function confirmBooking(){
   } else {
     DATA.requests.push({ id:'rq'+Date.now(), requester:me().name, meeting:wz.name, eventType:wz.eventType, pax:wz.pax,
       date:wz.date, start:wz.start, end:wz.end, buildingId:null, region:DATA.user.homeRegion, preferredSpaceId:null,
-      setup:wz.setups.join(', '), setups:[...wz.setups], amenities:[], catering:wz.catering, services:[...wz.services], notes:'Submitted via Book a Space — no building chosen.', status:'pending', allocatedSpaceId:null });
+      setup:wz.setups.join(', '), setups:[...wz.setups], amenities:[], catering:wz.catering, services:[...wz.services], notes:'Submitted via Book a Space — no building chosen.', status:'pending', allocatedSpaceId:null,
+      forPerson:(DATA.user.actingForId?DATA.people.find(p=>p.id===DATA.user.actingForId)?.name:null) });
     save(); toast('Request submitted — a planner will allocate a room'); renderRequests(); renderReqCount();
     wz=freshWizard(); renderBook(); go('requests');
   }
@@ -640,7 +668,7 @@ function renderRequests(){
         <div style="display:flex;gap:10px"><button class="btn primary sm" data-confirm-alloc="${req.id}">✓ Confirm allocation</button><button class="btn ghost sm" data-reject="${req.id}">Reject</button></div></div>`;
     }
     const actions=(planning&&req.status==='pending')?`<button class="btn sm primary" data-allocate="${req.id}">${req._open?'Close':'Allocate room'}</button>`:'';
-    return `<div class="req"><div class="rh"><div><h3>${req.meeting}</h3><div class="who">Requested by ${req.requester} · ${req.date}</div></div><div style="display:flex;gap:10px;align-items:center">${actions}${statusLine}</div></div><div class="grid">${meta}</div>${req.notes?`<div class="note">“${req.notes}”</div>`:''}${sla}${panel}</div>`;
+    return `<div class="req"><div class="rh"><div><h3>${req.meeting}</h3><div class="who">Requested by ${req.requester}${req.forPerson?` · for <b>${req.forPerson}</b>`:''} · ${req.date}</div></div><div style="display:flex;gap:10px;align-items:center">${actions}${statusLine}</div></div><div class="grid">${meta}</div>${req.notes?`<div class="note">“${req.notes}”</div>`:''}${sla}${panel}</div>`;
   }).join('');
 }
 function allocate(reqId){
@@ -648,7 +676,7 @@ function allocate(reqId){
   const sid=allocSel[reqId]||reqCandidates(req).find(o=>o.free&&o.sp.capacity>=req.pax)?.sp.id;
   if(!sid){toast('Pick a free room',false);return;}
   if(!spaceFree(sid,req.date,req.start,req.end)){toast('Room no longer free',false);return;}
-  DATA.bookings.push({ id:'b'+Date.now(), spaceId:sid, title:req.meeting.slice(0,28), client:req.eventType==='Internal meeting'?'Internal':req.meeting.split('—')[0].trim(), start:req.start, end:req.end, pax:req.pax, status:'new', catering:req.catering, services:req.services, date:req.date, planner:'p1', setup:req.setup, setups:req.setups, eventType:req.eventType });
+  DATA.bookings.push({ id:'b'+Date.now(), spaceId:sid, title:req.meeting.slice(0,28), client:req.eventType==='Internal meeting'?'Internal':req.meeting.split('—')[0].trim(), start:req.start, end:req.end, pax:req.pax, status:'new', catering:req.catering, services:req.services, date:req.date, planner:'p1', setup:req.setup, setups:req.setups, eventType:req.eventType, bookedBy:req.requester, forPerson:req.forPerson||null });
   req.status='allocated'; req.allocatedSpaceId=sid; req._open=false; delete allocSel[reqId];
   save(); renderRequests(); renderReqCount(); renderPlanner(); renderDashboard();
   toast(`Allocated ${space(sid).name} (${space(sid).buildingName}) to ${req.requester}`);
@@ -675,7 +703,7 @@ function renderPlanner(){
     return `<div class="tl-row"><div class="tl-room"><b>${sp.name}</b><span>${sp.type} · Fl ${sp.floor} · 👥${sp.capacity} · ⏱${sp.setupMins}/${sp.teardownMins}m</span></div><div class="tl-track">${blocks}</div></div>`;
   }).join('')||'<div class="empty">No spaces.</div>';
   const bk=DATA.bookings.filter(b=>spaces.some(s=>s.id===b.spaceId));
-  const rev=bk.reduce((s,b)=>{const sp=space(b.spaceId);return s+sp.rate*(b.end-b.start)+b.services.reduce((x,id)=>x+svc(id).price,0)+b.catering.reduce((x,c)=>x+(catItem(b? bId:bId,c.itemId)?.pricePerHead||0)*b.pax,0);},0);
+  const rev=bk.reduce((s,b)=>{const sp=space(b.spaceId);return s+sp.rate*(b.end-b.start)+b.services.reduce((x,id)=>x+svc(id).price,0)+b.catering.reduce((x,c)=>x+(catItem(bId,c.itemId)?.pricePerHead||0)*b.pax,0);},0);
   $('#planner-stats').innerHTML=[['Spaces',spaces.length,'in building'],['Bookings',bk.length,'today'],['Booked hours',Math.round(bk.reduce((s,b)=>s+(b.end-b.start),0))+'h',''],['Booked value',money(rev),'incl. extras']].map(([k,v,d])=>`<div class="card stat"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join('');
 }
 $('#pl-building').addEventListener('change',renderPlanner);
